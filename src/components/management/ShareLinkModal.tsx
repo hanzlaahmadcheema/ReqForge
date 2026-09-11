@@ -93,8 +93,13 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const isRevoked = currentStatus === 'revoked';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-stone-900/60 backdrop-blur-xs">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden pt-3 pb-1 flex justify-center">
+          <div className="w-10 h-1 rounded-full bg-stone-300" />
+        </div>
+
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 bg-stone-50/70">
           <div className="flex items-center gap-2.5">
@@ -129,14 +134,14 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 pb-safe sm:pb-6">
           {/* Associated metadata pills */}
           <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs">
             <div className="flex items-center gap-2">
@@ -167,13 +172,13 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <input
                 type="text"
                 readOnly
                 value={shareUrl}
                 disabled={isRevoked}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-mono select-all focus:outline-none focus:ring-2 ${
+                className={`w-full px-3.5 py-2.5 rounded-xl text-base sm:text-xs font-mono select-all focus:outline-none focus:ring-2 min-h-[44px] sm:min-h-0 ${
                   isRevoked
                     ? 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed line-through'
                     : 'bg-stone-50 border border-stone-200 text-stone-800 focus:ring-stone-900/10'
@@ -183,7 +188,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 type="button"
                 onClick={handleCopy}
                 disabled={isRevoked}
-                className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shrink-0 min-h-[44px] sm:min-h-0 active:scale-[0.98] ${
                   isRevoked
                     ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
                     : copied
@@ -199,7 +204,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>Copy</span>
+                    <span>Copy Link</span>
                   </>
                 )}
               </button>
@@ -238,7 +243,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             </div>
 
             {/* Revoke / Reactivate Button */}
-            <div className="pt-2 border-t border-black/5 flex items-center justify-between">
+            <div className="pt-2 border-t border-black/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <span className="text-[11px] font-medium text-stone-500">
                 {isRevoked ? 'Need to allow submissions again?' : 'Need to close or pause submissions?'}
               </span>
@@ -246,7 +251,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 type="button"
                 onClick={handleToggleRevoke}
                 disabled={isUpdating}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`w-full sm:w-auto px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-h-[38px] sm:min-h-0 active:scale-[0.98] ${
                   isRevoked
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     : 'bg-rose-100 hover:bg-rose-200 text-rose-800'
@@ -279,7 +284,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
                 href={shareUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:underline min-h-[40px] sm:min-h-0"
               >
                 <span>Test Client Form</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -291,7 +296,7 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer min-h-[40px] sm:min-h-0 active:scale-[0.98]"
             >
               Close
             </button>

@@ -138,16 +138,16 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
               <button
                 type="button"
                 onClick={handleCopyDocId}
-                className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-stone-200 rounded text-stone-700 hover:bg-stone-100 shrink-0 font-sans"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-stone-700 hover:bg-stone-100 shrink-0 font-sans min-h-[38px] sm:min-h-0 cursor-pointer active:scale-[0.98]"
               >
                 {copied ? (
                   <>
-                    <Check className="w-3 h-3 text-emerald-600" />
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
                     <span className="text-emerald-700">Copied</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-3.5 h-3.5" />
                     <span>Copy</span>
                   </>
                 )}
@@ -162,7 +162,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
           <div>
             <span className="text-stone-400 block font-mono">Status</span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
               Stored in Cloud Firestore
             </span>
@@ -171,12 +171,12 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+      <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 pb-safe sm:pb-0">
         <button
           type="button"
           onClick={handleDownloadPdf}
           disabled={isPdfGenerating}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm transition-all shadow-xs"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white font-semibold text-sm transition-all shadow-xs min-h-[48px] cursor-pointer"
         >
           {isPdfGenerating ? (
             <>
@@ -194,7 +194,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         <button
           type="button"
           onClick={handleDownloadReceipt}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-medium text-sm transition-all shadow-xs"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-stone-900 hover:bg-stone-800 active:scale-[0.98] text-white font-medium text-sm transition-all shadow-xs min-h-[48px] cursor-pointer"
         >
           <FileText className="w-4 h-4" />
           <span>Receipt (.txt)</span>
@@ -203,7 +203,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         <button
           type="button"
           onClick={onReset}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 font-medium text-sm transition-all"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 active:scale-[0.98] text-stone-700 font-medium text-sm transition-all min-h-[48px] cursor-pointer"
         >
           <RotateCcw className="w-4 h-4" />
           <span>Fill Another Form</span>

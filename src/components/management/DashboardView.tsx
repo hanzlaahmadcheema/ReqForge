@@ -55,22 +55,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in duration-150">
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Metrics Row (2-column on mobile, 5-column on desktop) */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4">
         {/* Metric 1: Total Clients */}
         <div
           onClick={() => onNavigateTab('clients')}
-          className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group active:scale-[0.98]"
         >
-          <div className="flex items-center justify-between text-stone-500 mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Clients</span>
-            <div className="p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
-              <Users className="w-4 h-4" />
+          <div className="flex items-center justify-between text-stone-500 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">Clients</span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-stone-900">{clients.length}</span>
-            <span className="text-xs text-stone-400 font-medium">
+            <span className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">{clients.length}</span>
+            <span className="text-[10px] sm:text-xs text-stone-400 font-medium tabular-nums">
               {clients.filter((c) => c.status === 'active').length} active
             </span>
           </div>
@@ -79,35 +79,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Metric 2: Active Projects */}
         <div
           onClick={() => onNavigateTab('projects')}
-          className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group active:scale-[0.98]"
         >
-          <div className="flex items-center justify-between text-stone-500 mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Active Projects</span>
-            <div className="p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
-              <FolderKanban className="w-4 h-4" />
+          <div className="flex items-center justify-between text-stone-500 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">Projects</span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+              <FolderKanban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-stone-900">{activeProjects.length}</span>
-            <span className="text-xs text-stone-400 font-medium">{projects.length} total</span>
+            <span className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">{activeProjects.length}</span>
+            <span className="text-[10px] sm:text-xs text-stone-400 font-medium tabular-nums">{projects.length} total</span>
           </div>
         </div>
 
         {/* Metric 3: Questionnaires */}
         <div
           onClick={() => onNavigateTab('questionnaires')}
-          className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group active:scale-[0.98]"
         >
-          <div className="flex items-center justify-between text-stone-500 mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Questionnaires</span>
-            <div className="p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
-              <FileQuestion className="w-4 h-4" />
+          <div className="flex items-center justify-between text-stone-500 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">Templates</span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+              <FileQuestion className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-stone-900">{questionnaires.length}</span>
-            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold">
-              {questionnaires.filter((q) => q.status === 'published').length} published
+            <span className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">{questionnaires.length}</span>
+            <span className="text-[10px] sm:text-xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full font-bold tabular-nums">
+              {questionnaires.filter((q) => q.status === 'published').length} pub
             </span>
           </div>
         </div>
@@ -115,34 +115,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Metric 4: Incomplete / Draft Submissions */}
         <div
           onClick={() => onNavigateTab('submissions')}
-          className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group"
+          className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group active:scale-[0.98]"
         >
-          <div className="flex items-center justify-between text-stone-500 mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Pending / Draft</span>
-            <div className="p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
-              <Clock className="w-4 h-4" />
+          <div className="flex items-center justify-between text-stone-500 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">In Progress</span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-stone-100 group-hover:bg-stone-900 group-hover:text-white transition-colors">
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-stone-900">{pendingSubmissions.length}</span>
-            <span className="text-xs text-stone-400 font-medium">in progress</span>
+            <span className="text-xl sm:text-2xl font-black text-stone-900 tabular-nums">{pendingSubmissions.length}</span>
+            <span className="text-[10px] sm:text-xs text-stone-400 font-medium tabular-nums">drafts</span>
           </div>
         </div>
 
-        {/* Metric 5: Completed Submissions */}
+        {/* Metric 5: Completed Submissions (Full width on 2-column mobile) */}
         <div
           onClick={() => onNavigateTab('submissions')}
-          className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group"
+          className="col-span-2 sm:col-span-1 bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-stone-400/80 transition-all cursor-pointer group active:scale-[0.98]"
         >
-          <div className="flex items-center justify-between text-stone-500 mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Completed</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-              <FileCheck2 className="w-4 h-4" />
+          <div className="flex items-center justify-between text-stone-500 mb-2 sm:mb-3">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-stone-500">Verified Submissions</span>
+            <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <FileCheck2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-black text-emerald-800">{completedSubmissions.length}</span>
-            <span className="text-xs text-emerald-600 font-medium">verified</span>
+            <span className="text-xl sm:text-2xl font-black text-emerald-800 tabular-nums">{completedSubmissions.length}</span>
+            <span className="text-[10px] sm:text-xs text-emerald-600 font-bold tabular-nums">ready</span>
           </div>
         </div>
       </div>

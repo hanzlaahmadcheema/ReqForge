@@ -125,19 +125,19 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   return (
     <div
       id={`question-card-${question.id}`}
-      className={`bg-white rounded-xl p-4 sm:p-5 border transition-all ${
+      className={`bg-white rounded-2xl p-4 sm:p-5 border transition-all duration-200 ${
         showError
-          ? 'border-rose-400 ring-2 ring-rose-100'
-          : 'border-stone-200/80 shadow-xs hover:border-stone-300'
+          ? 'border-rose-400 ring-2 ring-rose-100 shadow-sm'
+          : 'border-stone-200/80 shadow-2xs hover:border-stone-300'
       }`}
     >
       {/* Question Header */}
       <div className="flex items-start gap-3 mb-3">
-        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-stone-100 text-stone-700 font-semibold text-xs shrink-0 mt-0.5 border border-stone-200">
+        <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-stone-100 text-stone-700 font-bold text-xs shrink-0 mt-0.5 border border-stone-200 tabular-nums shadow-2xs">
           {questionNumber}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-base font-semibold text-stone-900 leading-snug">
+          <h2 className="text-base sm:text-base font-bold text-stone-900 leading-snug tracking-tight text-balance">
             {questionTitle}
             {question.required && (
               <span className="text-rose-500 ml-1 font-bold" title="Required">
@@ -147,15 +147,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           </h2>
 
           {questionDescription && (
-            <p className="text-sm text-stone-500 mt-1 leading-relaxed">
+            <p className="text-xs sm:text-sm text-stone-500 mt-1 leading-relaxed">
               {questionDescription}
             </p>
           )}
 
           {question.example && (
-            <div className="mt-2 flex items-start gap-1.5 p-2 rounded-lg bg-stone-50 text-stone-600 text-xs border border-stone-150">
+            <div className="mt-2 flex items-start gap-1.5 p-2.5 rounded-xl bg-stone-50 text-stone-600 text-xs border border-stone-200/70">
               <Info className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
-              <span>{question.example}</span>
+              <span className="leading-relaxed">{question.example}</span>
             </div>
           )}
         </div>
@@ -169,14 +169,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             <button
               type="button"
               onClick={() => handleValueChange(true)}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-sm font-medium transition-all min-h-[48px] ${
+              className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
                 currentValue === true
-                  ? 'bg-emerald-50 border-emerald-500 text-emerald-900 ring-2 ring-emerald-500/20'
+                  ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
                   : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
               }`}
             >
               <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 transition-colors ${
                   currentValue === true
                     ? 'border-emerald-600 bg-emerald-600 text-white'
                     : 'border-stone-300'
@@ -184,20 +184,20 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               >
                 {currentValue === true && <Check className="w-2.5 h-2.5" />}
               </div>
-              <span>{yesOptionLabel}</span>
+              <span className="truncate">{yesOptionLabel}</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleValueChange(false)}
-              className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border text-sm font-medium transition-all min-h-[48px] ${
+              className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
                 currentValue === false
-                  ? 'bg-stone-100 border-stone-600 text-stone-900 ring-2 ring-stone-400/20'
+                  ? 'bg-stone-100 border-stone-600 text-stone-950 ring-2 ring-stone-400/20 shadow-xs'
                   : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
               }`}
             >
               <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 transition-colors ${
                   currentValue === false
                     ? 'border-stone-700 bg-stone-700 text-white'
                     : 'border-stone-300'
@@ -205,7 +205,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               >
                 {currentValue === false && <Check className="w-2.5 h-2.5" />}
               </div>
-              <span>{noOptionLabel}</span>
+              <span className="truncate">{noOptionLabel}</span>
             </button>
           </div>
         )}
@@ -220,14 +220,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   key={opt.value}
                   type="button"
                   onClick={() => handleValueChange(opt.value)}
-                  className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border text-sm transition-all min-h-[48px] ${
+                  className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl border text-sm transition-all min-h-[48px] cursor-pointer active:scale-[0.99] ${
                     isSelected
-                      ? 'bg-sky-50/80 border-sky-500 text-sky-950 font-medium ring-2 ring-sky-500/20'
+                      ? 'bg-sky-50/90 border-sky-500 text-sky-950 font-semibold ring-2 ring-sky-500/20 shadow-xs'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100'
                   }`}
                 >
                   <div
-                    className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 mt-0.5 ${
+                    className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 mt-0.5 transition-colors ${
                       isSelected
                         ? 'border-sky-600 bg-sky-600 text-white'
                         : 'border-stone-300 bg-white'
@@ -236,9 +236,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                     {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="block">{opt.label}</span>
+                    <span className="block leading-snug">{opt.label}</span>
                     {opt.description && (
-                      <span className="text-xs text-stone-500 mt-0.5 block">
+                      <span className="text-xs text-stone-500 mt-1 block leading-relaxed font-normal">
                         {opt.description}
                       </span>
                     )}
@@ -255,7 +255,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   value={currentOtherText}
                   onChange={(e) => handleOtherTextChange(e.target.value)}
                   placeholder={question.otherPlaceholder || 'Other details (specify if needed)'}
-                  className="w-full px-3 py-2.5 rounded-lg border border-stone-200 bg-stone-50/50 text-sm text-stone-900 focus:bg-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 text-base sm:text-sm text-stone-900 focus:bg-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[44px]"
                 />
               </div>
             )}
@@ -273,14 +273,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   key={opt.value}
                   type="button"
                   onClick={() => handleCheckboxToggle(opt.value)}
-                  className={`w-full text-left flex items-start gap-3 p-3 rounded-xl border text-sm transition-all min-h-[48px] ${
+                  className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl border text-sm transition-all min-h-[48px] cursor-pointer active:scale-[0.99] ${
                     isChecked
-                      ? 'bg-sky-50/80 border-sky-500 text-sky-950 font-medium ring-2 ring-sky-500/20'
+                      ? 'bg-sky-50/90 border-sky-500 text-sky-950 font-semibold ring-2 ring-sky-500/20 shadow-xs'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100'
                   }`}
                 >
                   <div
-                    className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 mt-0.5 ${
+                    className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 mt-0.5 transition-colors ${
                       isChecked
                         ? 'border-sky-600 bg-sky-600 text-white'
                         : 'border-stone-300 bg-white'
@@ -288,7 +288,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   >
                     {isChecked && <Check className="w-2.5 h-2.5" />}
                   </div>
-                  <span className="flex-1 font-medium">{opt.label}</span>
+                  <span className="flex-1 font-medium leading-snug">{opt.label}</span>
                 </button>
               );
             })}
@@ -301,7 +301,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                   value={currentOtherText}
                   onChange={(e) => handleOtherTextChange(e.target.value)}
                   placeholder={question.otherPlaceholder || 'Other details (specify if needed)'}
-                  className="w-full px-3 py-2.5 rounded-lg border border-stone-200 bg-stone-50/50 text-sm text-stone-900 focus:bg-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 text-base sm:text-sm text-stone-900 focus:bg-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[44px]"
                 />
               </div>
             )}
@@ -316,7 +316,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={typeof currentValue === 'string' ? currentValue : ''}
               onChange={(e) => handleValueChange(e.target.value)}
               placeholder={question.placeholder || 'Type your answer here...'}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[44px]"
+              className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs"
             />
           </div>
         )}
@@ -329,10 +329,10 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={currentValue !== null && currentValue !== undefined ? String(currentValue) : ''}
               onChange={(e) => handleValueChange(e.target.value ? Number(e.target.value) : '')}
               placeholder={question.placeholder || '0'}
-              className="w-36 px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[44px]"
+              className="w-full sm:w-44 px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] tabular-nums shadow-2xs"
             />
             {question.unit && (
-              <span className="text-sm font-medium text-stone-500">{question.unit}</span>
+              <span className="text-sm font-semibold text-stone-500 shrink-0">{question.unit}</span>
             )}
           </div>
         )}
@@ -344,7 +344,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               type="date"
               value={typeof currentValue === 'string' ? currentValue : ''}
               onChange={(e) => handleValueChange(e.target.value)}
-              className="px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[44px]"
+              className="w-full sm:w-auto px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs tabular-nums cursor-pointer"
             />
           </div>
         )}
@@ -357,16 +357,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={typeof currentValue === 'string' ? currentValue : ''}
               onChange={(e) => handleValueChange(e.target.value)}
               placeholder={question.placeholder || 'Type detailed notes or explanation here...'}
-              className="w-full p-3 rounded-xl border border-stone-200 bg-white text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all resize-y min-h-[90px]"
+              className="w-full p-3.5 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all resize-y min-h-[100px] shadow-2xs leading-relaxed"
             />
           </div>
         )}
 
         {/* ERROR MESSAGE IF REQUIRED & UNANSWERED */}
         {showError && (
-          <p className="text-xs text-rose-600 font-medium pt-1 flex items-center gap-1">
-            <HelpCircle className="w-3.5 h-3.5" />
-            Please answer this required question to proceed.
+          <p className="text-xs text-rose-600 font-semibold pt-1 flex items-center gap-1.5 animate-in fade-in duration-150">
+            <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>Please answer this required question to proceed.</span>
           </p>
         )}
 
@@ -394,9 +394,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <button
                   type="button"
                   onClick={() => handleConditionalValueChange(true)}
-                  className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all min-h-[44px] cursor-pointer active:scale-[0.98] ${
                     currentConditionalValue === true
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-semibold'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-bold'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-100'
                   }`}
                 >
@@ -405,9 +405,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 <button
                   type="button"
                   onClick={() => handleConditionalValueChange(false)}
-                  className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all min-h-[44px] cursor-pointer active:scale-[0.98] ${
                     currentConditionalValue === false
-                      ? 'bg-stone-200 border-stone-500 text-stone-900 font-semibold'
+                      ? 'bg-stone-200 border-stone-500 text-stone-950 font-bold'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-100'
                   }`}
                 >
@@ -423,7 +423,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 value={typeof currentConditionalValue === 'string' ? currentConditionalValue : ''}
                 onChange={(e) => handleConditionalValueChange(e.target.value)}
                 placeholder={conditional.followUpQuestion.placeholder || 'Type here...'}
-                className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-white text-xs text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                className="w-full px-3 py-2.5 rounded-xl border border-stone-200 bg-white text-base sm:text-xs text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 min-h-[44px]"
               />
             )}
 
@@ -434,7 +434,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 value={typeof currentConditionalValue === 'string' ? currentConditionalValue : ''}
                 onChange={(e) => handleConditionalValueChange(e.target.value)}
                 placeholder={conditional.followUpQuestion.placeholder || 'Type here...'}
-                className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-white text-xs text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-y"
+                className="w-full p-3 rounded-xl border border-stone-200 bg-white text-base sm:text-xs text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-y min-h-[70px]"
               />
             )}
 
@@ -449,9 +449,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                         key={subOpt.value}
                         type="button"
                         onClick={() => handleConditionalValueChange(subOpt.value)}
-                        className={`w-full text-left flex items-center gap-2 p-2 rounded-lg border text-xs transition-all ${
+                        className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-xl border text-xs transition-all min-h-[44px] cursor-pointer active:scale-[0.99] ${
                           isSelected
-                            ? 'bg-sky-50 border-sky-500 text-sky-950 font-semibold'
+                            ? 'bg-sky-50 border-sky-500 text-sky-950 font-bold'
                             : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
@@ -492,9 +492,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                           else list.push(subOpt.value);
                           handleConditionalValueChange(list);
                         }}
-                        className={`w-full text-left flex items-center gap-2 p-2 rounded-lg border text-xs transition-all ${
+                        className={`w-full text-left flex items-center gap-2.5 p-2.5 rounded-xl border text-xs transition-all min-h-[44px] cursor-pointer active:scale-[0.99] ${
                           isChecked
-                            ? 'bg-sky-50 border-sky-500 text-sky-950 font-semibold'
+                            ? 'bg-sky-50 border-sky-500 text-sky-950 font-bold'
                             : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
@@ -528,7 +528,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                         conditional.followUpQuestion.otherPlaceholder ||
                         'Other details (specify if needed)'
                       }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-stone-200 bg-white text-xs text-stone-900 focus:border-sky-500 focus:outline-none"
+                      className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-white text-base sm:text-xs text-stone-900 focus:border-sky-500 focus:outline-none min-h-[44px]"
                     />
                   )}
                 </div>

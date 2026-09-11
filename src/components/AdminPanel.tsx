@@ -297,44 +297,49 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   return (
     <div id="admin-management-panel" className="min-h-screen bg-stone-100/90 text-stone-900 pb-16">
       {/* Top Sticky Header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200/90 shadow-2xs pt-safe">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
           {/* Brand and Status */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={onBackToForm}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 rounded-xl transition-all cursor-pointer shrink-0 min-h-[36px] active:scale-[0.98]"
+              title="Return to client questionnaire form"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Form</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Back to Form</span>
             </button>
-            <div className="h-5 w-px bg-stone-200 hidden sm:block" />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
-                  Requirements Management Layer
+
+            <div className="h-5 w-px bg-stone-200 hidden sm:block shrink-0" />
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-sm sm:text-base font-black text-stone-900 tracking-tight truncate">
+                  <span className="sm:hidden">Admin Portal</span>
+                  <span className="hidden sm:inline">Requirements Management Layer</span>
                 </h1>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <span className="hidden sm:inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
                   Firestore Connected
                 </span>
+                <span className="inline-block sm:hidden w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Firestore Connected" />
               </div>
-              <p className="text-xs text-stone-500 hidden sm:block">
+              <p className="text-[11px] text-stone-500 hidden md:block truncate">
                 Manage Clients, Projects, Questionnaires, and Submissions
               </p>
             </div>
           </div>
 
           {/* Right Header Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 rounded-xl transition-all cursor-pointer disabled:opacity-50 min-h-[36px] active:scale-[0.98]"
               title="Refresh Data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
 
@@ -342,18 +347,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <button
                 type="button"
                 onClick={onLock}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg cursor-pointer transition-colors"
+                className="inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-600 hover:text-stone-900 hover:bg-stone-100 active:bg-stone-200 rounded-xl cursor-pointer transition-all min-h-[36px] active:scale-[0.98]"
                 title="Sign out of admin console"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Sign Out</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* Primary Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 overflow-x-auto border-t border-stone-100">
+        {/* Primary Navigation Tabs with Mobile Friendly Horizontal Scroll */}
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-stone-100">
           {navTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -362,18 +367,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap active:scale-[0.98] ${
                   isActive
-                    ? 'border-stone-900 text-stone-900'
+                    ? 'border-stone-900 text-stone-950 font-black'
                     : 'border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span>{tab.label}</span>
                 {tab.count !== undefined && (
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
-                      isActive ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600'
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold tabular-nums ${
+                      isActive ? 'bg-stone-900 text-white' : 'bg-stone-200/80 text-stone-700'
                     }`}
                   >
                     {tab.count}

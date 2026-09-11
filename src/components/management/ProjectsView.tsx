@@ -567,26 +567,26 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
       </div>
 
       {/* Filter and Search bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-stone-200 shadow-2xs">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 shrink-0" />
           <input
             type="text"
             placeholder="Search projects by name, description, or client..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-transparent text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-stone-50 md:bg-transparent rounded-xl md:rounded-none text-base sm:text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none min-h-[44px]"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Client Filter Dropdown */}
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-stone-400 text-[11px] font-semibold uppercase">Client:</span>
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 text-xs">
+            <span className="text-stone-400 text-[10px] font-bold uppercase shrink-0">Client:</span>
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 focus:outline-none"
+              className="w-full sm:w-auto px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-xl text-base sm:text-xs font-semibold text-stone-800 focus:outline-none min-h-[44px]"
             >
               <option value="ALL">All Clients</option>
               {clients.map((c) => (
@@ -598,12 +598,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           </div>
 
           {/* Sort selector */}
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-stone-400 text-[11px] font-semibold uppercase">Sort:</span>
+          <div className="flex-1 sm:flex-initial flex items-center gap-1.5 text-xs">
+            <span className="text-stone-400 text-[10px] font-bold uppercase shrink-0">Sort:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-semibold text-stone-800 focus:outline-none"
+              className="w-full sm:w-auto px-2.5 py-2 bg-stone-50 border border-stone-200 rounded-xl text-base sm:text-xs font-semibold text-stone-800 focus:outline-none min-h-[44px]"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
@@ -612,15 +612,15 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           </div>
 
           {/* Status filter buttons */}
-          <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
+          <div className="w-full sm:w-auto flex items-center gap-1 bg-stone-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
             {(['all', 'active', 'completed', 'archived'] as const).map((st) => (
               <button
                 key={st}
                 type="button"
                 onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
+                className={`flex-1 sm:flex-initial text-center px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all cursor-pointer min-h-[36px] active:scale-[0.98] ${
                   statusFilter === st
-                    ? 'bg-white text-stone-900 shadow-2xs'
+                    ? 'bg-white text-stone-900 shadow-2xs font-black'
                     : 'text-stone-500 hover:text-stone-800'
                 }`}
               >
@@ -631,77 +631,71 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
         </div>
       </div>
 
-      {/* Projects Grid / Table */}
+      {/* Projects Grid / Table: Mobile Cards + Desktop Table */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-2xs">
         {filteredProjects.length === 0 ? (
           <div className="text-center py-16 text-xs text-stone-400 space-y-2">
             <FolderKanban className="w-10 h-10 mx-auto text-stone-300" />
-            <p>No projects found matching your criteria.</p>
+            <p className="text-stone-600 font-semibold text-sm">No projects found</p>
+            <p>Try adjusting your search query or client filter.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-stone-600">
-              <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Project Name</th>
-                  <th className="py-3 px-4">Client Organization</th>
-                  <th className="py-3 px-4">Assigned Questionnaire</th>
-                  <th className="py-3 px-4">Share Link</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Submissions</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredProjects.map((project) => {
-                  const client = clientMap.get(project.clientId);
-                  const assignedQ = questionnaireMap.get(
-                    project.questionnaireId || project.assignedQuestionnaireId || ''
-                  );
-                  const projectSubsCount = submissions.filter((s) => s.projectId === project.id).length;
-                  const isRevoked = project.shareLinkStatus === 'revoked';
+          <>
+            {/* MOBILE PROJECT CARDS (block on sm:hidden) */}
+            <div className="block sm:hidden divide-y divide-stone-100">
+              {filteredProjects.map((project) => {
+                const client = clientMap.get(project.clientId);
+                const assignedQ = questionnaireMap.get(
+                  project.questionnaireId || project.assignedQuestionnaireId || ''
+                );
+                const projectSubsCount = submissions.filter((s) => s.projectId === project.id).length;
+                const isRevoked = project.shareLinkStatus === 'revoked';
 
-                  return (
-                    <tr
-                      key={project.id}
-                      className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
-                      onClick={() => setSelectedProject(project)}
-                    >
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-stone-100 group-hover:bg-stone-900 group-hover:text-white text-stone-700 flex items-center justify-center font-bold transition-colors shrink-0">
-                            <FolderKanban className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-stone-900 block group-hover:text-black">
-                              {project.name}
-                            </span>
-                            <span className="text-[11px] text-stone-400 truncate max-w-[200px] block">
-                              {project.description || project.id}
-                            </span>
-                          </div>
+                return (
+                  <div
+                    key={project.id}
+                    className="p-4 space-y-3 hover:bg-stone-50/70 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center font-bold shrink-0">
+                          <FolderKanban className="w-4 h-4" />
                         </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5 font-medium text-stone-800">
-                          <Building2 className="w-3.5 h-3.5 text-stone-400" />
-                          <span>{client?.name || 'Unknown Client'}</span>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-stone-900 truncate">
+                            {project.name}
+                          </h4>
+                          <span className="text-xs text-stone-500 flex items-center gap-1 mt-0.5 truncate">
+                            <Building2 className="w-3 h-3 text-stone-400 shrink-0" />
+                            <span className="truncate">{client?.name || 'Client'}</span>
+                          </span>
                         </div>
-                      </td>
+                      </div>
 
-                      <td className="py-3.5 px-4">
-                        <span className="font-medium text-stone-800 block">
-                          {assignedQ?.title || 'Generic Requirements'}
-                        </span>
-                        <span className="text-[10px] text-stone-400">
-                          v{assignedQ?.version || 1}
-                        </span>
-                      </td>
+                      <span
+                        className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${
+                          project.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : project.status === 'completed'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        {project.status}
+                      </span>
+                    </div>
 
-                      <td className="py-3.5 px-4">
+                    <div className="bg-stone-50 p-2.5 rounded-xl text-xs space-y-1.5 border border-stone-150 text-stone-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-stone-500 text-[11px]">Questionnaire:</span>
+                        <span className="font-semibold text-stone-900 truncate">
+                          {assignedQ?.title || 'Generic'} (v{assignedQ?.version || 1})
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-stone-500 text-[11px]">Share Link:</span>
                         <span
-                          className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
                             isRevoked
                               ? 'bg-rose-50 text-rose-700 border-rose-200'
                               : 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -709,64 +703,179 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                         >
                           {isRevoked ? 'Revoked' : 'Active'}
                         </span>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                            project.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : project.status === 'completed'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-stone-200 text-stone-700'
-                          }`}
-                        >
-                          {project.status}
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-stone-500 text-[11px]">Submissions:</span>
+                        <span className="font-bold text-stone-900 tabular-nums">
+                          {projectSubsCount}
                         </span>
-                      </td>
+                      </div>
+                    </div>
 
-                      <td className="py-3.5 px-4 font-semibold text-stone-800">
-                        {projectSubsCount}
-                      </td>
+                    {/* Mobile Buttons */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpenShareLink(project)}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold shadow-2xs cursor-pointer min-h-[40px] active:scale-[0.98]"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        <span>Share Link</span>
+                      </button>
 
-                      <td className="py-3.5 px-4 text-right">
-                        <div
-                          className="inline-flex items-center gap-1.5"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => onOpenShareLink(project)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold cursor-pointer shadow-2xs text-[11px]"
-                            title="Generate Share Link"
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProject(project)}
+                        className="inline-flex items-center justify-center gap-1 py-2.5 px-3 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 text-xs font-semibold cursor-pointer min-h-[40px] active:scale-[0.98]"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(project)}
+                        className="p-2 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-100 cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center active:scale-[0.98]"
+                        title="Edit Project"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP TABLE VIEW (hidden on sm:block) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-stone-600">
+                <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Project Name</th>
+                    <th className="py-3 px-4">Client Organization</th>
+                    <th className="py-3 px-4">Assigned Questionnaire</th>
+                    <th className="py-3 px-4">Share Link</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Submissions</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredProjects.map((project) => {
+                    const client = clientMap.get(project.clientId);
+                    const assignedQ = questionnaireMap.get(
+                      project.questionnaireId || project.assignedQuestionnaireId || ''
+                    );
+                    const projectSubsCount = submissions.filter((s) => s.projectId === project.id).length;
+                    const isRevoked = project.shareLinkStatus === 'revoked';
+
+                    return (
+                      <tr
+                        key={project.id}
+                        className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
+                        onClick={() => setSelectedProject(project)}
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-stone-100 group-hover:bg-stone-900 group-hover:text-white text-stone-700 flex items-center justify-center font-bold transition-colors shrink-0">
+                              <FolderKanban className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-stone-900 block group-hover:text-black">
+                                {project.name}
+                              </span>
+                              <span className="text-[11px] text-stone-400 truncate max-w-[200px] block">
+                                {project.description || project.id}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5 font-medium text-stone-800">
+                            <Building2 className="w-3.5 h-3.5 text-stone-400" />
+                            <span>{client?.name || 'Unknown Client'}</span>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span className="font-medium text-stone-800 block">
+                            {assignedQ?.title || 'Generic Requirements'}
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            v{assignedQ?.version || 1}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                              isRevoked
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
                           >
-                            <Share2 className="w-3.5 h-3.5" />
-                            <span>Share</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProject(project)}
-                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
-                            title="View Project Details"
+                            {isRevoked ? 'Revoked' : 'Active'}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                              project.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : project.status === 'completed'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-stone-200 text-stone-700'
+                            }`}
                           >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(project)}
-                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
-                            title="Edit Project"
+                            {project.status}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 font-bold text-stone-800 tabular-nums">
+                          {projectSubsCount}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div
+                            className="inline-flex items-center gap-1.5"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <button
+                              type="button"
+                              onClick={() => onOpenShareLink(project)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white font-semibold cursor-pointer shadow-2xs text-[11px]"
+                              title="Generate Share Link"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Share</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProject(project)}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+                              title="View Project Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(project)}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+                              title="Edit Project"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

@@ -365,54 +365,62 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       )}
 
       {/* STICKY TOP PROGRESS BAR */}
-      <nav aria-label="Questionnaire navigation and progress" className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-2xs">
-        <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+      <nav aria-label="Questionnaire navigation and progress" className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-2xs pt-safe">
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <button
               type="button"
               onClick={() => setIsSectionDrawerOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
             >
-              <Layers className="w-3.5 h-3.5 text-stone-500" />
+              <Layers className="w-3.5 h-3.5 text-stone-600 shrink-0" />
               <span>Sections</span>
             </button>
 
-            <span className="text-xs text-stone-500 hidden sm:inline">
+            {/* Mobile section badge */}
+            <span className="text-[11px] font-semibold text-stone-500 bg-stone-100/70 px-2 py-1 rounded-lg tabular-nums inline-block sm:hidden truncate">
+              {!isReviewStep && currentSection
+                ? `${currentSectionIndex + 1}/${sections.length}`
+                : 'Review'}
+            </span>
+
+            {/* Desktop section label */}
+            <span className="text-xs text-stone-600 font-medium hidden sm:inline truncate max-w-xs">
               {!isReviewStep && currentSection
                 ? `Section ${currentSectionIndex + 1} of ${sections.length}: ${currentSection.title}`
                 : 'Final Review & Submission'}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {!isPreview && (
               <button
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={isSavingDraft}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer min-h-[36px] active:scale-[0.98] ${
                   draftSaveSuccess
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
                     : 'bg-stone-100 hover:bg-stone-200 text-stone-700 active:bg-stone-300'
                 }`}
                 title="Save current answers as draft to resume anytime"
               >
                 {draftSaveSuccess ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-700" />
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                     <span>Saved!</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-3.5 h-3.5 text-stone-500" />
+                    <Save className="w-3.5 h-3.5 text-stone-600 shrink-0" />
                     <span>{isSavingDraft ? 'Saving...' : 'Save Draft'}</span>
                   </>
                 )}
               </button>
             )}
 
-            <span className="text-xs font-bold text-stone-800">
-              {overallProgressPercentage}% Complete
+            <span className="text-xs font-black text-stone-900 tabular-nums">
+              {overallProgressPercentage}%
             </span>
           </div>
         </div>
@@ -592,20 +600,20 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       )}
 
       {/* STICKY BOTTOM ACTION BAR */}
-      <footer className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-stone-200 py-3 px-4 shadow-lg">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+      <footer className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-stone-200/90 py-2.5 px-3 sm:px-4 pb-safe shadow-lg">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={handlePrevSection}
               disabled={currentSectionIndex === 0}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] ${
                 currentSectionIndex === 0
                   ? 'opacity-30 cursor-not-allowed text-stone-400 bg-stone-100'
-                  : 'text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 cursor-pointer'
+                  : 'text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 cursor-pointer active:scale-[0.98]'
               }`}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 shrink-0" />
               <span>Previous</span>
             </button>
 
@@ -614,21 +622,21 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={isSavingDraft}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer min-h-[44px] active:scale-[0.98] ${
                   draftSaveSuccess
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
                     : 'bg-stone-100 hover:bg-stone-200 text-stone-700 active:bg-stone-300'
                 }`}
                 title="Save work as draft to resume later"
               >
                 {draftSaveSuccess ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-700" />
-                    <span className="hidden sm:inline">Draft Saved</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span className="hidden sm:inline">Saved</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-3.5 h-3.5 text-stone-500" />
+                    <Save className="w-3.5 h-3.5 text-stone-500 shrink-0" />
                     <span className="hidden sm:inline">{isSavingDraft ? 'Saving...' : 'Save Draft'}</span>
                   </>
                 )}
@@ -637,26 +645,26 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
 
           {!isReviewStep ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => setCurrentSectionIndex(sections.length)}
-                className="hidden sm:inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1 px-3 py-2.5 rounded-xl text-xs font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition-colors cursor-pointer min-h-[44px]"
               >
-                <span>Jump to Review</span>
+                <span>Review</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleNextSection}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
               >
                 <span>
                   {currentSectionIndex === sections.length - 1
                     ? 'Review & Submit'
                     : 'Next Section'}
                 </span>
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4 shrink-0" />
               </button>
             </div>
           ) : (
@@ -664,13 +672,13 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-sm transition-all cursor-pointer disabled:opacity-50 min-h-[44px] active:scale-[0.98]"
             >
               {isSubmitting ? (
                 <span>Submitting...</span>
               ) : (
                 <>
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5 shrink-0" />
                   <span>Submit Requirements</span>
                 </>
               )}

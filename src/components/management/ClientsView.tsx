@@ -162,11 +162,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
     return (
       <div className="space-y-6 animate-in fade-in duration-150">
         {/* Breadcrumb & Navigation */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setSelectedClient(null)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 cursor-pointer min-h-[44px] sm:min-h-0 py-2 sm:py-0 active:scale-[0.98]"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to All Clients</span>
@@ -176,7 +176,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <button
               type="button"
               onClick={() => handleOpenEdit(selectedClient)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 text-xs font-semibold text-stone-700 cursor-pointer transition-colors"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-stone-300 hover:bg-stone-50 text-xs font-semibold text-stone-700 cursor-pointer transition-colors min-h-[44px] sm:min-h-0 active:scale-[0.98]"
             >
               <Edit2 className="w-3.5 h-3.5" />
               <span>Edit Details</span>
@@ -184,7 +184,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <button
               type="button"
               onClick={() => onArchiveClient(selectedClient.id, selectedClient.status !== 'archived')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 text-xs font-semibold text-stone-700 cursor-pointer transition-colors"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl border border-stone-300 hover:bg-stone-50 text-xs font-semibold text-stone-700 cursor-pointer transition-colors min-h-[44px] sm:min-h-0 active:scale-[0.98]"
             >
               {selectedClient.status === 'archived' ? (
                 <>
@@ -202,15 +202,15 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
         </div>
 
         {/* Client Profile Header Card */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-2xs space-y-4">
+        <div className="bg-white rounded-2xl border border-stone-200 p-4 sm:p-6 shadow-2xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-stone-900 text-white flex items-center justify-center font-bold text-lg shadow-xs">
+              <div className="w-12 h-12 rounded-2xl bg-stone-900 text-white flex items-center justify-center font-bold text-lg shadow-xs shrink-0">
                 {selectedClient.name.charAt(0).toUpperCase()}
               </div>
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xl font-black text-stone-900 tracking-tight">{selectedClient.name}</h2>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-xl font-black text-stone-900 tracking-tight truncate">{selectedClient.name}</h2>
                   <span
                     className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
                       selectedClient.status === 'active'
@@ -221,7 +221,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     {selectedClient.status}
                   </span>
                 </div>
-                <p className="text-xs text-stone-500 mt-0.5">
+                <p className="text-xs text-stone-500 mt-0.5 truncate">
                   Client Record ID: <span className="font-mono text-stone-700">{selectedClient.id}</span>
                 </p>
               </div>
@@ -230,7 +230,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <button
               type="button"
               onClick={() => onCreateProjectForClient(selectedClient.id)}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 min-h-[44px] active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
               <span>Add Project for this Client</span>
@@ -430,7 +430,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   year: 'numeric',
                 });
                 return (
-                  <div key={sub.id} className="p-4 flex items-center justify-between gap-4 hover:bg-stone-50/60 transition-colors">
+                  <div key={sub.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-stone-50/60 transition-colors">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs text-stone-900">{sub.id}</span>
@@ -443,18 +443,18 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
                       <button
                         type="button"
                         onClick={() => onViewSubmission(sub)}
-                        className="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer"
+                        className="flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-xs font-semibold text-stone-700 cursor-pointer min-h-[40px] sm:min-h-0 active:scale-[0.98]"
                       >
                         Inspect Answers
                       </button>
                       <button
                         type="button"
                         onClick={() => onDownloadPdf(sub)}
-                        className="p-1.5 rounded-lg border border-stone-300 hover:bg-stone-100 text-stone-600 hover:text-stone-900 cursor-pointer"
+                        className="p-2 sm:p-1.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-600 hover:text-stone-900 cursor-pointer min-h-[40px] min-w-[40px] sm:min-h-0 sm:min-w-0 flex items-center justify-center active:scale-[0.98]"
                         title="Download PDF"
                       >
                         <FileDown className="w-4 h-4" />
@@ -482,7 +482,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 min-h-[44px] active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
           <span>Add New Client</span>
@@ -498,7 +498,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             placeholder="Search clients by name, contact, email, or notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-transparent text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none"
+            className="w-full pl-9 pr-4 py-2.5 sm:py-2 bg-transparent text-base sm:text-xs text-stone-900 placeholder:text-stone-400 focus:outline-none min-h-[44px] sm:min-h-0"
           />
         </div>
 
@@ -508,7 +508,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
               key={st}
               type="button"
               onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 sm:py-1 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer min-h-[38px] sm:min-h-0 active:scale-[0.98] ${
                 statusFilter === st
                   ? 'bg-white text-stone-900 shadow-2xs'
                   : 'text-stone-500 hover:text-stone-800'
@@ -520,7 +520,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
         </div>
       </div>
 
-      {/* Clients Table / Cards */}
+      {/* Clients Table / Mobile Cards */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-2xs">
         {filteredClients.length === 0 ? (
           <div className="text-center py-16 text-xs text-stone-400 space-y-2">
@@ -528,114 +528,200 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             <p>No clients found matching your search.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-stone-600">
-              <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="py-3 px-4">Client Organization</th>
-                  <th className="py-3 px-4">Primary Contact</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Projects</th>
-                  <th className="py-3 px-4">Submissions</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {filteredClients.map((client) => {
-                  const clientProjectsCount = projects.filter((p) => p.clientId === client.id).length;
-                  const clientSubsCount = submissions.filter(
-                    (s) =>
-                      s.clientId === client.id ||
-                      s.clientCode?.toLowerCase() === client.name?.toLowerCase()
-                  ).length;
+          <>
+            {/* Mobile Cards View */}
+            <div className="block sm:hidden divide-y divide-stone-100">
+              {filteredClients.map((client) => {
+                const clientProjectsCount = projects.filter((p) => p.clientId === client.id).length;
+                const clientSubsCount = submissions.filter(
+                  (s) =>
+                    s.clientId === client.id ||
+                    s.clientCode?.toLowerCase() === client.name?.toLowerCase()
+                ).length;
 
-                  return (
-                    <tr
-                      key={client.id}
-                      className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
-                      onClick={() => setSelectedClient(client)}
-                    >
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                            {client.name.charAt(0).toUpperCase()}
+                return (
+                  <div
+                    key={client.id}
+                    onClick={() => setSelectedClient(client)}
+                    className="p-4 space-y-3 hover:bg-stone-50/70 transition-colors active:bg-stone-100 cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          {client.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-stone-900 truncate">{client.name}</h4>
+                          <span className="text-[11px] text-stone-400 block font-mono">{client.id}</span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize shrink-0 ${
+                          client.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        {client.status}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-stone-600 bg-stone-50 p-2.5 rounded-xl space-y-0.5">
+                      <div className="font-medium text-stone-800 truncate">
+                        {client.contactPerson || 'No contact person specified'}
+                      </div>
+                      <div className="text-[11px] text-stone-500 truncate">
+                        {client.contactEmail || client.contactPhone || 'No contact email or phone'}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-stone-100 text-xs">
+                      <div className="flex items-center gap-3 text-stone-500">
+                        <span>Projects: <strong className="text-stone-800 tabular-nums font-semibold">{clientProjectsCount}</strong></span>
+                        <span>•</span>
+                        <span>Subs: <strong className="text-stone-800 tabular-nums font-semibold">{clientSubsCount}</strong></span>
+                      </div>
+
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedClient(client)}
+                          className="p-2 rounded-xl text-stone-600 hover:bg-stone-100 min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer"
+                          title="View Client Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(client)}
+                          className="p-2 rounded-xl text-stone-600 hover:bg-stone-100 min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer"
+                          title="Edit Client"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-stone-600">
+                <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Client Organization</th>
+                    <th className="py-3 px-4">Primary Contact</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">Projects</th>
+                    <th className="py-3 px-4">Submissions</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {filteredClients.map((client) => {
+                    const clientProjectsCount = projects.filter((p) => p.clientId === client.id).length;
+                    const clientSubsCount = submissions.filter(
+                      (s) =>
+                        s.clientId === client.id ||
+                        s.clientCode?.toLowerCase() === client.name?.toLowerCase()
+                    ).length;
+
+                    return (
+                      <tr
+                        key={client.id}
+                        className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
+                        onClick={() => setSelectedClient(client)}
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                              {client.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <span className="font-bold text-stone-900 block group-hover:text-black">
+                                {client.name}
+                              </span>
+                              <span className="text-[11px] text-stone-400">{client.id}</span>
+                            </div>
                           </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
                           <div>
-                            <span className="font-bold text-stone-900 block group-hover:text-black">
-                              {client.name}
+                            <span className="font-medium text-stone-800 block">
+                              {client.contactPerson || '—'}
                             </span>
-                            <span className="text-[11px] text-stone-400">{client.id}</span>
+                            <span className="text-[11px] text-stone-400 block truncate max-w-[180px]">
+                              {client.contactEmail || client.contactPhone || 'No contact info'}
+                            </span>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3.5 px-4">
-                        <div>
-                          <span className="font-medium text-stone-800 block">
-                            {client.contactPerson || '—'}
-                          </span>
-                          <span className="text-[11px] text-stone-400 block truncate max-w-[180px]">
-                            {client.contactEmail || client.contactPhone || 'No contact info'}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                            client.status === 'active'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-stone-200 text-stone-700'
-                          }`}
-                        >
-                          {client.status}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 font-semibold text-stone-800">
-                        {clientProjectsCount}
-                      </td>
-
-                      <td className="py-3.5 px-4 font-semibold text-stone-800">
-                        {clientSubsCount}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div
-                          className="inline-flex items-center gap-1.5"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setSelectedClient(client)}
-                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
-                            title="View Client Details"
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                              client.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-stone-200 text-stone-700'
+                            }`}
                           >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(client)}
-                            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
-                            title="Edit Client"
+                            {client.status}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 font-semibold text-stone-800 tabular-nums">
+                          {clientProjectsCount}
+                        </td>
+
+                        <td className="py-3.5 px-4 font-semibold text-stone-800 tabular-nums">
+                          {clientSubsCount}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div
+                            className="inline-flex items-center gap-1.5"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedClient(client)}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+                              title="View Client Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(client)}
+                              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 cursor-pointer"
+                              title="Edit Client"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* Modal: Create or Edit Client */}
       {(isCreateModalOpen || editingClient) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-stone-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-md w-full shadow-2xl border border-stone-200 overflow-hidden max-h-[90dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* Mobile bottom-sheet drag handle */}
+            <div className="sm:hidden pt-3 pb-1 flex justify-center">
+              <div className="w-10 h-1 rounded-full bg-stone-300" />
+            </div>
+
             <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 bg-stone-50">
               <h3 className="text-sm font-bold text-stone-900">
                 {editingClient ? 'Edit Client Record' : 'Create New Client'}
@@ -646,13 +732,13 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   setIsCreateModalOpen(false);
                   setEditingClient(null);
                 }}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg cursor-pointer"
+                className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitForm} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleSubmitForm} className="p-6 space-y-4 text-xs pb-safe sm:pb-6">
               <div>
                 <label className="font-semibold text-stone-700 block mb-1">
                   Company / Client Name <span className="text-red-500">*</span>
@@ -663,7 +749,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   placeholder="e.g. Acme Corporation"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 />
               </div>
 
@@ -674,11 +760,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   placeholder="e.g. Jane Doe"
                   value={formContactPerson}
                   onChange={(e) => setFormContactPerson(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-stone-700 block mb-1">Email</label>
                   <input
@@ -686,7 +772,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     placeholder="contact@company.com"
                     value={formContactEmail}
                     onChange={(e) => setFormContactEmail(e.target.value)}
-                    className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                    className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                   />
                 </div>
                 <div>
@@ -696,7 +782,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     placeholder="+1 (555) 000-0000"
                     value={formContactPhone}
                     onChange={(e) => setFormContactPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                    className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                   />
                 </div>
               </div>
@@ -708,7 +794,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                   placeholder="General notes or business requirements context..."
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 />
               </div>
 
@@ -717,7 +803,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                 <select
                   value={formStatus}
                   onChange={(e) => setFormStatus(e.target.value as 'active' | 'archived')}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
+                  className="w-full px-3 py-2.5 sm:py-2 text-base sm:text-xs min-h-[44px] sm:min-h-0 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/10"
                 >
                   <option value="active">Active</option>
                   <option value="archived">Archived</option>
@@ -731,14 +817,14 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
                     setIsCreateModalOpen(false);
                     setEditingClient(null);
                   }}
-                  className="px-3.5 py-2 text-stone-600 hover:bg-stone-100 rounded-xl font-medium cursor-pointer"
+                  className="px-4 py-2.5 sm:py-2 text-stone-600 hover:bg-stone-100 rounded-xl font-medium cursor-pointer min-h-[44px] sm:min-h-0 active:scale-[0.98]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={formSubmitting || !formName.trim()}
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white rounded-xl font-bold transition-colors cursor-pointer shadow-xs"
+                  className="px-5 py-2.5 sm:py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white rounded-xl font-bold transition-colors cursor-pointer shadow-xs min-h-[44px] sm:min-h-0 active:scale-[0.98]"
                 >
                   {formSubmitting ? 'Saving...' : editingClient ? 'Save Changes' : 'Create Client'}
                 </button>

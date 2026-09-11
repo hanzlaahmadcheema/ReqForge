@@ -191,13 +191,18 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
   return (
     <div
       id="submission-detail-modal"
-      className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fadeIn"
+      className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200 overflow-hidden"
+        className="bg-white rounded-t-3xl sm:rounded-2xl w-full max-w-4xl max-h-[92dvh] flex flex-col shadow-2xl border border-stone-200 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile drag handle */}
+        <div className="sm:hidden pt-3 pb-1 flex justify-center bg-stone-50/75">
+          <div className="w-10 h-1 rounded-full bg-stone-300" />
+        </div>
+
         {/* Modal Top Header */}
         <div className="p-4 sm:p-6 border-b border-stone-200 bg-stone-50/75 shrink-0">
           <div className="flex items-start justify-between gap-4">
@@ -487,7 +492,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         ) : (
           <>
             {/* Section Tabs Header */}
-            <div className="border-b border-stone-200 bg-stone-100/70 px-4 sm:px-6 overflow-x-auto flex gap-1 scrollbar-none shrink-0">
+            <div className="border-b border-stone-200 bg-stone-100/70 px-4 sm:px-6 overflow-x-auto flex gap-1 no-scrollbar shrink-0">
           {activeSections.map((sec, idx) => {
             const secQuestions = sec.questions || [];
             const secAnswered = secQuestions.filter((q) => {
@@ -525,118 +530,115 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         </div>
 
         {/* Section Questions Content */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {currentSection && (
-            <div className="space-y-4">
-              <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200/80">
-                <h3 className="font-bold text-stone-900 text-sm">{currentSection.title}</h3>
-                {currentSection.description && (
-                  <p className="text-xs text-stone-600 mt-1">{currentSection.description}</p>
-                )}
-              </div>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-stone-900">
+                {currentSection.title}
+              </h3>
+              {currentSection.description && (
+                <p className="text-xs text-stone-500 mt-0.5">{currentSection.description}</p>
+              )}
+            </div>
+            <span className="text-xs text-stone-400 font-mono">
+              Section {activeTab + 1} of {activeSections.length}
+            </span>
+          </div>
 
-              <div className="space-y-3">
-                {(currentSection.questions || []).map((q, qIndex) => {
-                  const ans = answers[q.id];
-                  const hasAnswer =
-                    ans &&
-                    ans.value !== null &&
-                    ans.value !== undefined &&
-                    (Array.isArray(ans.value) ? ans.value.length > 0 : String(ans.value).trim().length > 0);
+          <div className="space-y-4">
+            {(currentSection.questions || []).map((q, qIdx) => {
+              const ans = answers[q.id];
+              const hasAnswer = ans && ans.value !== null && ans.value !== undefined;
 
-                  return (
-                    <div
-                      key={q.id}
-                      className={`p-4 rounded-xl border transition-colors ${
-                        hasAnswer
-                          ? 'bg-white border-stone-200'
-                          : 'bg-stone-50/50 border-dashed border-stone-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider block">
-                            Question {qIndex + 1} • {q.type.replace('_', ' ')}
-                          </span>
-                          <h4 className="text-sm font-semibold text-stone-900">{q.text || q.title || q.id}</h4>
-                          {q.description && (
-                            <p className="text-xs text-stone-500">{q.description}</p>
-                          )}
-                        </div>
-
-                        {hasAnswer ? (
-                          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            Answered
-                          </span>
-                        ) : (
-                          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-stone-400 bg-stone-100 px-2 py-0.5 rounded">
-                            <HelpCircle className="w-3 h-3" />
-                            Not Answered
-                          </span>
+              return (
+                <div
+                  key={q.id}
+                  className={`p-4 rounded-xl border transition-all ${
+                    hasAnswer
+                      ? 'bg-white border-stone-200 shadow-2xs'
+                      : 'bg-stone-50/70 border-dashed border-stone-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                          Q{q.questionNumber || qIdx + 1}
+                        </span>
+                        <span className="text-xs font-semibold text-stone-900">
+                          {q.title || q.text}
+                        </span>
+                        {q.required && (
+                          <span className="text-[10px] text-rose-500 font-medium">*required</span>
                         )}
                       </div>
+                      {q.subtitle && (
+                        <p className="text-[11px] text-stone-400">{q.subtitle}</p>
+                      )}
+                    </div>
+                  </div>
 
-                      {/* Display Answer Value */}
-                      <div className="mt-3 pt-3 border-t border-stone-100">
-                        {hasAnswer ? (
-                          <div className="space-y-1.5">
-                            <div className="text-xs font-semibold text-stone-500">Response:</div>
-                            {Array.isArray(ans.value) ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {ans.value.map((v, i) => (
-                                  <span
-                                    key={i}
-                                    className="px-2.5 py-1 rounded-lg bg-stone-100 text-stone-800 text-xs font-medium border border-stone-200"
-                                  >
-                                    {String(v)}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : typeof ans.value === 'boolean' ? (
-                              <span
-                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold inline-block ${
-                                  ans.value
-                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                    : 'bg-stone-100 text-stone-700 border border-stone-200'
-                                }`}
-                              >
-                                {ans.value ? 'Yes' : 'No'}
-                              </span>
+                  <div className="mt-3 pt-2.5 border-t border-stone-100">
+                    {hasAnswer ? (
+                      <div className="space-y-2">
+                        {Array.isArray(ans.value) ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {ans.value.length > 0 ? (
+                              ans.value.map((v, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-1 text-xs bg-stone-100 text-stone-800 font-medium px-2.5 py-1 rounded-lg border border-stone-200"
+                                >
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  {v}
+                                </span>
+                              ))
                             ) : (
-                              <p className="text-xs text-stone-900 bg-stone-50 p-2.5 rounded-lg border border-stone-200/80 font-medium whitespace-pre-wrap">
-                                {String(ans.value)}
-                              </p>
-                            )}
-
-                            {ans.otherText && (
-                              <div className="mt-1 text-xs text-stone-600 bg-amber-50/70 p-2 rounded-lg border border-amber-200/70">
-                                <span className="font-semibold text-amber-900">Other Specified: </span>
-                                {ans.otherText}
-                              </div>
-                            )}
-
-                            {ans.conditionalValue !== undefined && ans.conditionalValue !== null && (
-                              <div className="mt-1 text-xs text-stone-600 bg-blue-50/70 p-2 rounded-lg border border-blue-200/70">
-                                <span className="font-semibold text-blue-900">Follow-up Response: </span>
-                                {String(ans.conditionalValue)}
-                              </div>
+                              <span className="text-xs text-stone-400 italic">None selected</span>
                             )}
                           </div>
+                        ) : typeof ans.value === 'boolean' ? (
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg ${
+                              ans.value
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-stone-100 text-stone-700 border border-stone-200'
+                            }`}
+                          >
+                            {ans.value ? 'Yes' : 'No'}
+                          </span>
                         ) : (
-                          <p className="text-xs text-stone-400 italic">No answer provided</p>
+                          <p className="text-xs text-stone-900 bg-stone-50 p-2.5 rounded-lg border border-stone-200/80 font-medium whitespace-pre-wrap">
+                            {String(ans.value)}
+                          </p>
+                        )}
+
+                        {ans.otherText && (
+                          <div className="mt-1 text-xs text-stone-600 bg-amber-50/70 p-2 rounded-lg border border-amber-200/70">
+                            <span className="font-semibold text-amber-900">Other Specified: </span>
+                            {ans.otherText}
+                          </div>
+                        )}
+
+                        {ans.conditionalValue !== undefined && ans.conditionalValue !== null && (
+                          <div className="mt-1 text-xs text-stone-600 bg-blue-50/70 p-2 rounded-lg border border-blue-200/70">
+                            <span className="font-semibold text-blue-900">Follow-up Response: </span>
+                            {String(ans.conditionalValue)}
+                          </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    ) : (
+                      <p className="text-xs text-stone-400 italic">No answer provided</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between shrink-0">
+        <div className="p-4 pb-safe sm:pb-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-xs text-stone-500">
             <span>Section {activeTab + 1} of {sections.length}</span>
           </div>
@@ -646,22 +648,22 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
               type="button"
               disabled={activeTab === 0}
               onClick={() => setActiveTab((prev) => Math.max(0, prev - 1))}
-              className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl hover:bg-stone-100 disabled:opacity-40 transition-colors cursor-pointer"
+              className="px-3 py-2 sm:py-1.5 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl hover:bg-stone-100 disabled:opacity-40 transition-all cursor-pointer min-h-[40px] sm:min-h-0 active:scale-[0.98]"
             >
-              Previous Section
+              Previous
             </button>
             <button
               type="button"
               disabled={activeTab === sections.length - 1}
               onClick={() => setActiveTab((prev) => Math.min(sections.length - 1, prev + 1))}
-              className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl hover:bg-stone-100 disabled:opacity-40 transition-colors cursor-pointer"
+              className="px-3 py-2 sm:py-1.5 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl hover:bg-stone-100 disabled:opacity-40 transition-all cursor-pointer min-h-[40px] sm:min-h-0 active:scale-[0.98]"
             >
-              Next Section
+              Next
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-stone-900 rounded-xl hover:bg-stone-800 transition-colors cursor-pointer ml-2"
+              className="px-4 py-2 sm:py-1.5 text-xs font-semibold text-white bg-stone-900 rounded-xl hover:bg-stone-800 transition-all cursor-pointer ml-1 min-h-[40px] sm:min-h-0 active:scale-[0.98]"
             >
               Close
             </button>

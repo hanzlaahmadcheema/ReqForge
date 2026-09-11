@@ -187,8 +187,13 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl max-w-3xl w-full border border-stone-200 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl max-w-3xl w-full border border-stone-200 shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden">
+        {/* Mobile drag handle */}
+        <div className="sm:hidden pt-3 pb-1 flex justify-center bg-stone-50/50">
+          <div className="w-10 h-1 rounded-full bg-stone-300" />
+        </div>
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/50">
           <div className="flex items-center gap-2.5">
@@ -210,7 +215,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition"
+            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition min-h-[36px] min-w-[36px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
@@ -280,7 +285,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder="Paste valid questionnaire JSON here..."
               rows={16}
-              className="w-full font-mono text-xs p-4 bg-stone-900 text-stone-100 rounded-xl border border-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400 leading-relaxed resize-none selection:bg-stone-700"
+              className="w-full font-mono text-base sm:text-xs p-4 bg-stone-900 text-stone-100 rounded-xl border border-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400 leading-relaxed resize-none selection:bg-stone-700"
               spellCheck={false}
             />
             {jsonText && (
@@ -320,8 +325,8 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-3.5 border-t border-stone-200 flex items-center justify-between bg-stone-50/50">
-          <span className="text-[11px] text-stone-400">
+        <div className="px-6 py-3.5 pb-safe sm:pb-3.5 border-t border-stone-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-50/50">
+          <span className="text-[11px] text-stone-400 text-center sm:text-left">
             Compliant with <span className="font-mono">docs/questionnaire-json-format.md</span>
           </span>
 
@@ -329,7 +334,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 hover:bg-stone-50 transition cursor-pointer"
+              className="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 hover:bg-stone-50 transition cursor-pointer min-h-[44px] sm:min-h-0 active:scale-[0.98]"
             >
               Close
             </button>
@@ -339,7 +344,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
                 type="button"
                 onClick={handleValidateAndImport}
                 disabled={!jsonText.trim()}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 transition shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-0 active:scale-[0.98]"
               >
                 <span>Validate & Import</span>
                 <ArrowRight className="w-3.5 h-3.5" />
