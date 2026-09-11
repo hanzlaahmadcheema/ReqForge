@@ -106,8 +106,8 @@ function sanitizeForFirestore<T>(data: T): T {
 
 /**
  * Saves the completed client questionnaire response to Firestore
- * Creates a timestamped document (e.g. pepsiOffice_2026_09_06_1625)
- * and also updates the master client document (e.g. pepsiOffice) for immediate lookup.
+ * Creates a timestamped document (e.g. clientIdentifier_2026_09_06_1625)
+ * and also updates the master client document for immediate lookup.
  */
 export async function saveClientResponse(
   clientCode: string,

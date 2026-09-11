@@ -8,7 +8,6 @@ import {
   Calendar,
   FileDown,
   Eye,
-  Trash2,
   Check,
   Filter,
   ArrowUpDown,
@@ -30,7 +29,7 @@ interface SubmissionsViewProps {
   projects: Project[];
   questionnaires: Questionnaire[];
   sections: QuestionnaireSection[];
-  onDeleteSubmission: (id: string, clientCode: string) => Promise<void>;
+  onDeleteSubmission?: (id: string, clientCode: string) => Promise<void>;
   onStatusChange?: (
     id: string,
     status: 'draft' | 'submitted' | 'reviewed' | 'archived'
@@ -204,19 +203,6 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
       console.error('Error generating PDF:', err);
     } finally {
       setDownloadingId(null);
-    }
-  };
-
-  const handleDelete = async (sub: Submission) => {
-    const confirm = window.confirm(
-      `Delete submission record "${sub.id}" for ${sub.clientCode}? This cannot be undone.`
-    );
-    if (!confirm) return;
-    try {
-      await onDeleteSubmission(sub.id, sub.clientCode);
-    } catch (err) {
-      console.error('Error deleting submission:', err);
-      alert('Failed to delete submission record.');
     }
   };
 
@@ -518,14 +504,30 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
                             {isSuccess ? <Check className="w-3.5 h-3.5" /> : <FileDown className="w-3.5 h-3.5" />}
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(sub)}
-                            className="p-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 cursor-pointer transition-colors"
-                            title="Delete submission"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Archive / Restore button */}
+                          {onStatusChange && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleStatusUpdate(
+                                  sub.id,
+                                  currentSt === 'archived' ? 'submitted' : 'archived'
+                                )
+                              }
+                              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                currentSt === 'archived'
+                                  ? 'border-stone-200 text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                                  : 'border-stone-200 text-stone-400 hover:text-amber-700 hover:border-amber-200 hover:bg-amber-50'
+                              }`}
+                              title={currentSt === 'archived' ? 'Restore Submission' : 'Archive Submission'}
+                            >
+                              {currentSt === 'archived' ? (
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              ) : (
+                                <Archive className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -545,11 +547,8 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
           onClose={() => setActiveSubmission(null)}
           sections={sections}
           questionnaire={questionnaireMap.get(activeSubmission.questionnaireId || activeSubmission.formId || '')}
+          projectName={activeSubmission.projectId ? projectMap.get(activeSubmission.projectId)?.name : undefined}
           onStatusChange={handleStatusUpdate}
-          onDelete={async (id) => {
-            await onDeleteSubmission(id, activeSubmission.clientCode);
-            setActiveSubmission(null);
-          }}
         />
       )}
     </div>

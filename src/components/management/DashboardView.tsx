@@ -107,7 +107,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-black text-stone-900">{questionnaires.length}</span>
             <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold">
-              Published v{questionnaires[0]?.version || 1}
+              {questionnaires.filter((q) => q.status === 'published').length} published
             </span>
           </div>
         </div>
@@ -146,6 +146,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Zero data onboarding banner */}
+      {clients.length === 0 && projects.length === 0 && questionnaires.length === 0 && (
+        <div className="bg-white rounded-2xl border-2 border-dashed border-stone-300 p-8 text-center space-y-4 shadow-2xs">
+          <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-800 flex items-center justify-center mx-auto">
+            <Users className="w-6 h-6" />
+          </div>
+          <div className="max-w-md mx-auto space-y-1">
+            <h3 className="text-base font-bold text-stone-900">Welcome to your Requirements Platform</h3>
+            <p className="text-xs text-stone-500 leading-relaxed">
+              The platform is completely database-driven with zero pre-populated demo records. Get started by creating your first client or questionnaire template.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onOpenNewClient}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create your first client</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('questionnaires')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-stone-300 hover:bg-stone-50 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create questionnaire</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions & System Hierarchy */}
       <div className="bg-gradient-to-r from-stone-900 to-stone-800 rounded-2xl p-6 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">

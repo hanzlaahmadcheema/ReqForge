@@ -97,6 +97,9 @@ export interface Questionnaire {
   version: number;
   status: 'draft' | 'published' | 'archived';
   sections: Section[];
+  clientId?: string; // Optional: specific client assignment
+  projectId?: string; // Optional: specific project assignment
+  isReusable?: boolean; // Default true: reusable template
   createdAt?: string;
   updatedAt?: string;
 }
@@ -134,6 +137,17 @@ export interface Client {
   updatedAt: string;
 }
 
+export interface ProjectQuestionnaireAssignment {
+  id: string;
+  questionnaireId: string;
+  questionnaireVersion: number;
+  title?: string;
+  shareToken?: string;
+  shareLinkStatus?: 'active' | 'revoked';
+  assignedAt: string;
+  status?: 'pending' | 'submitted' | 'reviewed';
+}
+
 export interface Project {
   id: string;
   clientId: string;
@@ -142,6 +156,7 @@ export interface Project {
   questionnaireId?: string;
   assignedQuestionnaireId?: string;
   questionnaireVersion?: number;
+  assignedQuestionnaires?: ProjectQuestionnaireAssignment[];
   shareLinkStatus?: 'active' | 'revoked';
   shareToken?: string;
   status: 'active' | 'archived' | 'completed';

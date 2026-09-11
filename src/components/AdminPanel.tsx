@@ -28,9 +28,10 @@ import {
   updateProject,
   archiveProject,
   assignQuestionnaireToProject,
+  addQuestionnaireAssignmentToProject,
+  removeQuestionnaireAssignmentFromProject,
   fetchQuestionnaires,
   fetchSubmissions,
-  deleteSubmission,
 } from '../lib/managementService';
 import { updateSubmissionStatus } from '../lib/questionnaireService';
 import { DashboardView } from './management/DashboardView';
@@ -185,6 +186,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
   };
 
+  const handleAddQuestionnaireAssignment = async (
+    projectId: string,
+    questionnaireId: string,
+    version = 1
+  ) => {
+    const asgn = await addQuestionnaireAssignmentToProject(projectId, questionnaireId, version);
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        const assignedQuestionnaires = [...(p.assignedQuestionnaires || []), asgn];
+        return {
+          ...p,
+          assignedQuestionnaires,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const handleRemoveQuestionnaireAssignment = async (
+    projectId: string,
+    assignmentId: string
+  ) => {
+    await removeQuestionnaireAssignmentFromProject(projectId, assignmentId);
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id !== projectId) return p;
+        const assignedQuestionnaires = (p.assignedQuestionnaires || []).filter(
+          (a) => a.id !== assignmentId
+        );
+        return {
+          ...p,
+          assignedQuestionnaires,
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
   // Submission Operations
   const handleStatusChange = async (
     id: string,
@@ -213,12 +253,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleDeleteSubmission = async (id: string) => {
-    await deleteSubmission(id);
-    setSubmissions((prev) => prev.filter((s) => s.id !== id));
-    if (inspectSubmission?.id === id) {
-      setInspectSubmission(null);
-    }
+  const handleArchiveSubmission = async (id: string) => {
+    await handleStatusChange(id, 'archived');
   };
 
   // PDF Export helper
@@ -381,6 +417,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <ClientsView
                 clients={clients}
                 projects={projects}
+                questionnaires={questionnaires}
                 submissions={submissions}
                 onCreateClient={handleCreateClient}
                 onUpdateClient={handleUpdateClient}
@@ -404,6 +441,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 onUpdateProject={handleUpdateProject}
                 onArchiveProject={handleArchiveProject}
                 onAssignQuestionnaire={handleAssignQuestionnaire}
+                onAddAssignment={handleAddQuestionnaireAssignment}
+                onRemoveAssignment={handleRemoveQuestionnaireAssignment}
                 onOpenShareLink={(project) => setShareLinkProject(project)}
                 onViewSubmission={(sub) => setInspectSubmission(sub)}
                 onDownloadPdf={handleDownloadPdf}
@@ -431,7 +470,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 projects={projects}
                 questionnaires={questionnaires}
                 sections={sections}
-                onDeleteSubmission={handleDeleteSubmission}
+                onDeleteSubmission={handleArchiveSubmission}
                 onStatusChange={handleStatusChange}
               />
             )}
@@ -462,10 +501,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           questionnaire={questionnaires.find(
             (q) => q.id === (inspectSubmission.questionnaireId || inspectSubmission.formId)
           )}
+          projectName={
+            inspectSubmission.projectId
+              ? projects.find((p) => p.id === inspectSubmission.projectId)?.name
+              : undefined
+          }
           onStatusChange={handleStatusChange}
-          onDelete={async (id) => {
-            await handleDeleteSubmission(id);
-          }}
         />
       )}
     </div>

@@ -167,13 +167,13 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
           Additional Requirements & Special Notes
         </label>
         <p className="text-xs text-stone-500 mb-3">
-          Any specific hardware (e.g. barcode scanner brand, receipt printer model), custom warehouse layout notes, or company procedures.
+          Any specific technical requirements, third-party integrations, compliance policies, or project-specific constraints.
         </p>
         <textarea
           rows={3}
           value={additionalRequirements}
           onChange={(e) => setAdditionalRequirements(e.target.value)}
-          placeholder="e.g., We use an Xprinter thermal receipt printer and Honeywell Bluetooth handheld barcode scanners. We also need daily PDF summary emailed at 8:00 PM."
+          placeholder="e.g., We require single sign-on integration with our existing identity provider, automated nightly reporting, and compatibility with our internal database systems."
           className="w-full p-3 text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 text-stone-900 resize-y"
         />
       </div>
@@ -182,7 +182,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-sm font-bold uppercase tracking-wider text-stone-600">
-            Summary by Section (15 Sections)
+            Summary by Section ({sections.length} Sections)
           </h3>
           <span className="text-xs text-stone-400 font-medium">
             Tap 'Edit' to change

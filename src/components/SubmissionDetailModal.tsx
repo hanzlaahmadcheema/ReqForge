@@ -35,11 +35,11 @@ interface SubmissionDetailModalProps {
   onClose: () => void;
   sections: QuestionnaireSection[];
   questionnaire?: Questionnaire | null;
+  projectName?: string;
   onStatusChange?: (
     submissionId: string,
     newStatus: 'draft' | 'submitted' | 'reviewed' | 'archived'
   ) => Promise<void>;
-  onDelete?: (submissionId: string) => Promise<void>;
 }
 
 export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
@@ -48,8 +48,8 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
   onClose,
   sections,
   questionnaire,
+  projectName,
   onStatusChange,
-  onDelete,
 }) => {
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -57,7 +57,6 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [snapshotSections, setSnapshotSections] = useState<QuestionnaireSection[] | null>(null);
   const [mainViewMode, setMainViewMode] = useState<'responses' | 'ai_intelligence'>('responses');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (
@@ -165,20 +164,6 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
     }
   };
 
-  const handleDelete = async () => {
-    if (!onDelete) return;
-    setIsUpdatingStatus(true);
-    try {
-      await onDelete(submission.id);
-      onClose();
-    } catch (err) {
-      console.error('Failed deleting submission:', err);
-    } finally {
-      setIsUpdatingStatus(false);
-      setShowDeleteConfirm(false);
-    }
-  };
-
   const currentSection = activeSections[activeTab] || activeSections[0];
 
   const effectiveQuestionnaire: Questionnaire = snapshotSections
@@ -221,6 +206,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
                   <Building2 className="w-3.5 h-3.5 text-blue-600" />
                   {submission.clientCode}
+                  {projectName && <span className="text-blue-600 font-medium"> • {projectName}</span>}
                 </span>
 
                 {/* Status Badge */}
@@ -339,25 +325,47 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
 
               <div className="flex items-center gap-2">
                 {currentStatus === 'draft' && (
-                  <button
-                    type="button"
-                    disabled={isUpdatingStatus}
-                    onClick={() => handleStatusTransition('submitted')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors cursor-pointer"
-                  >
-                    Mark as Submitted
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={isUpdatingStatus}
+                      onClick={() => handleStatusTransition('submitted')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors cursor-pointer"
+                    >
+                      Mark as Submitted
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdatingStatus}
+                      onClick={() => handleStatusTransition('archived')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100 border border-stone-200 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Archive className="w-3.5 h-3.5 text-stone-500" />
+                      Archive
+                    </button>
+                  </>
                 )}
 
                 {currentStatus === 'submitted' && (
-                  <button
-                    type="button"
-                    disabled={isUpdatingStatus}
-                    onClick={() => handleStatusTransition('reviewed')}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
-                  >
-                    Mark as Reviewed
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={isUpdatingStatus}
+                      onClick={() => handleStatusTransition('reviewed')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                    >
+                      Mark as Reviewed
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdatingStatus}
+                      onClick={() => handleStatusTransition('archived')}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100 border border-stone-200 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Archive className="w-3.5 h-3.5 text-stone-500" />
+                      Archive
+                    </button>
+                  </>
                 )}
 
                 {currentStatus === 'reviewed' && (
@@ -386,51 +394,13 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   <button
                     type="button"
                     disabled={isUpdatingStatus}
-                    onClick={() => handleStatusTransition('reviewed')}
+                    onClick={() => handleStatusTransition('submitted')}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-stone-900 hover:bg-stone-800 text-white shadow-xs transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    Restore
+                    Restore to Submitted
                   </button>
                 )}
-
-                {onDelete && (
-                  <button
-                    type="button"
-                    disabled={isUpdatingStatus}
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer ml-1"
-                    title="Delete submission"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Delete Confirmation Alert */}
-          {showDeleteConfirm && (
-            <div className="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between text-xs text-rose-900 animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>Are you sure you want to permanently delete this submission record?</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-2.5 py-1 text-stone-600 hover:bg-rose-100 rounded-lg cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg cursor-pointer"
-                >
-                  Yes, Delete
-                </button>
               </div>
             </div>
           )}

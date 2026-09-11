@@ -195,7 +195,7 @@ export const SectionCompletionChart: React.FC<SectionCompletionChartProps> = ({
             <div className="text-xs text-stone-600 flex items-center gap-1.5 py-1">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
-                All 15 sections are fully answered and ready to be compiled or submitted to Firestore.
+                All {totalSections} sections are fully answered and ready to be compiled or submitted.
               </span>
             </div>
           )}

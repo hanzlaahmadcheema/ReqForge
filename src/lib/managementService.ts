@@ -12,9 +12,8 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, Project, Questionnaire, Submission } from '../types';
-import { DEFAULT_QUESTIONNAIRE } from '../data/defaultQuestionnaire';
-import { getQuestionnaire, seedQuestionnaireIfMissing } from './questionnaireService';
+import { Client, Project, Questionnaire, Submission, ProjectQuestionnaireAssignment } from '../types';
+import { getQuestionnaire } from './questionnaireService';
 
 function sanitize<T>(data: T): T {
   if (data === undefined) return null as unknown as T;
@@ -52,19 +51,11 @@ export async function fetchClients(): Promise<Client[]> {
       });
     });
 
-    // If Firestore is empty, seed an initial example client and project for immediate usability
-    if (clients.length === 0) {
-      const defaultClient = await seedInitialClientAndProject();
-      if (defaultClient) {
-        clients.push(defaultClient);
-      }
-    }
-
     clients.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return clients;
   } catch (err) {
     console.warn('Error fetching clients from Firestore:', err);
-    return getLocalFallbackClients();
+    return [];
   }
 }
 
@@ -154,9 +145,10 @@ export async function fetchProjects(clientId?: string): Promise<Project[]> {
           clientId: data.clientId || '',
           name: data.name || 'Unnamed Project',
           description: data.description || '',
-          questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
-          assignedQuestionnaireId: data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
+          questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || undefined,
+          assignedQuestionnaireId: data.assignedQuestionnaireId || data.questionnaireId || undefined,
           questionnaireVersion: data.questionnaireVersion,
+          assignedQuestionnaires: data.assignedQuestionnaires || [],
           shareLinkStatus: data.shareLinkStatus || 'active',
           shareToken: data.shareToken,
           status: data.status || 'active',
@@ -170,7 +162,7 @@ export async function fetchProjects(clientId?: string): Promise<Project[]> {
     return projects;
   } catch (err) {
     console.warn('Error fetching projects from Firestore:', err);
-    return getLocalFallbackProjects(clientId);
+    return [];
   }
 }
 
@@ -185,9 +177,10 @@ export async function getProject(id: string): Promise<Project | null> {
         clientId: data.clientId || '',
         name: data.name || 'Unnamed Project',
         description: data.description || '',
-        questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
-        assignedQuestionnaireId: data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
+        questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || undefined,
+        assignedQuestionnaireId: data.assignedQuestionnaireId || data.questionnaireId || undefined,
         questionnaireVersion: data.questionnaireVersion,
+        assignedQuestionnaires: data.assignedQuestionnaires || [],
         shareLinkStatus: data.shareLinkStatus || 'active',
         shareToken: data.shareToken,
         status: data.status || 'active',
@@ -202,7 +195,7 @@ export async function getProject(id: string): Promise<Project | null> {
 }
 
 export async function syncProjectShareTokenDoc(project: Project): Promise<void> {
-  if (!project.id || !project.shareToken) return;
+  if (!project.id) return;
   try {
     let clientName: string | undefined = undefined;
     if (project.clientId) {
@@ -214,26 +207,62 @@ export async function syncProjectShareTokenDoc(project: Project): Promise<void> 
       }
     }
 
-    const tokenRef = doc(db, 'projects', project.id, 'tokens', project.shareToken);
-    await setDoc(
-      tokenRef,
-      sanitize({
-        projectId: project.id,
-        shareToken: project.shareToken,
-        clientId: project.clientId,
-        clientName: clientName || '',
-        name: project.name,
-        description: project.description || '',
-        questionnaireId: project.questionnaireId || project.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
-        assignedQuestionnaireId: project.assignedQuestionnaireId || project.questionnaireId || DEFAULT_QUESTIONNAIRE.id,
-        questionnaireVersion: project.questionnaireVersion || 1,
-        shareLinkStatus: project.shareLinkStatus || 'active',
-        status: project.status || 'active',
-        createdAt: project.createdAt || new Date().toISOString(),
-        updatedAt: project.updatedAt || new Date().toISOString(),
-      }),
-      { merge: true }
-    );
+    const primaryQId = project.questionnaireId || project.assignedQuestionnaireId || '';
+    const primaryQVer = project.questionnaireVersion || 1;
+
+    // 1. Sync primary project shareToken if present
+    if (project.shareToken) {
+      const tokenRef = doc(db, 'projects', project.id, 'tokens', project.shareToken);
+      await setDoc(
+        tokenRef,
+        sanitize({
+          projectId: project.id,
+          shareToken: project.shareToken,
+          clientId: project.clientId,
+          clientName: clientName || '',
+          name: project.name,
+          description: project.description || '',
+          questionnaireId: primaryQId,
+          assignedQuestionnaireId: primaryQId,
+          questionnaireVersion: primaryQVer,
+          assignedQuestionnaires: project.assignedQuestionnaires || [],
+          shareLinkStatus: project.shareLinkStatus || 'active',
+          status: project.status || 'active',
+          createdAt: project.createdAt || new Date().toISOString(),
+          updatedAt: project.updatedAt || new Date().toISOString(),
+        }),
+        { merge: true }
+      );
+    }
+
+    // 2. Sync each assigned questionnaire token if present
+    if (project.assignedQuestionnaires && project.assignedQuestionnaires.length > 0) {
+      for (const asgn of project.assignedQuestionnaires) {
+        if (asgn.shareToken && asgn.shareToken !== project.shareToken) {
+          const asgnTokenRef = doc(db, 'projects', project.id, 'tokens', asgn.shareToken);
+          await setDoc(
+            asgnTokenRef,
+            sanitize({
+              projectId: project.id,
+              shareToken: asgn.shareToken,
+              clientId: project.clientId,
+              clientName: clientName || '',
+              name: project.name,
+              description: project.description || '',
+              questionnaireId: asgn.questionnaireId,
+              assignedQuestionnaireId: asgn.questionnaireId,
+              questionnaireVersion: asgn.questionnaireVersion || 1,
+              assignmentId: asgn.id,
+              shareLinkStatus: asgn.shareLinkStatus || project.shareLinkStatus || 'active',
+              status: project.status || 'active',
+              createdAt: asgn.assignedAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }),
+            { merge: true }
+          );
+        }
+      }
+    }
   } catch (err) {
     console.warn('Error syncing project share token document:', err);
   }
@@ -269,9 +298,10 @@ export async function getProjectByShareToken(
             clientId: data.clientId || '',
             name: data.name || 'Unnamed Project',
             description: data.description || '',
-            questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id,
-            assignedQuestionnaireId: data.assignedQuestionnaireId || data.questionnaireId || DEFAULT_QUESTIONNAIRE.id,
+            questionnaireId: data.questionnaireId || data.assignedQuestionnaireId || undefined,
+            assignedQuestionnaireId: data.assignedQuestionnaireId || data.questionnaireId || undefined,
             questionnaireVersion: data.questionnaireVersion,
+            assignedQuestionnaires: data.assignedQuestionnaires || [],
             shareLinkStatus: data.shareLinkStatus,
             shareToken: cleanToken,
             status: data.status,
@@ -299,7 +329,7 @@ export async function updateProjectShareLink(
     updatedAt: now,
   });
   const proj = await getProject(projectId);
-  if (proj && proj.shareToken) {
+  if (proj) {
     await syncProjectShareTokenDoc({ ...proj, shareLinkStatus, updatedAt: now });
   }
 }
@@ -309,27 +339,98 @@ export async function assignQuestionnaireToProject(
   questionnaireId: string,
   questionnaireVersion?: number
 ): Promise<void> {
-  const docRef = doc(db, 'projects', projectId);
+  const project = await getProject(projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+
   const now = new Date().toISOString();
+  const version = questionnaireVersion ?? project.questionnaireVersion ?? 1;
+
+  // Check if an assignment already exists for this questionnaire
+  const assignments = project.assignedQuestionnaires ? [...project.assignedQuestionnaires] : [];
+  const existingIdx = assignments.findIndex((a) => a.questionnaireId === questionnaireId);
+
+  if (existingIdx >= 0) {
+    assignments[existingIdx] = {
+      ...assignments[existingIdx],
+      questionnaireVersion: version,
+    };
+  } else {
+    assignments.push({
+      id: `asgn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      questionnaireId,
+      questionnaireVersion: version,
+      shareToken: `st_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`,
+      shareLinkStatus: 'active',
+      assignedAt: now,
+      status: 'pending',
+    });
+  }
+
+  const docRef = doc(db, 'projects', projectId);
   const updateData: Record<string, unknown> = {
     questionnaireId,
     assignedQuestionnaireId: questionnaireId,
+    questionnaireVersion: version,
+    assignedQuestionnaires: assignments,
     updatedAt: now,
   };
-  if (questionnaireVersion !== undefined) {
+
+  await updateDoc(docRef, sanitize(updateData));
+  const fullProj = await getProject(projectId);
+  if (fullProj) {
+    await syncProjectShareTokenDoc(fullProj);
+  }
+}
+
+export async function addQuestionnaireAssignmentToProject(
+  projectId: string,
+  questionnaireId: string,
+  questionnaireVersion = 1,
+  title?: string
+): Promise<ProjectQuestionnaireAssignment> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+
+  const assignmentId = `asgn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const assignmentToken = `st_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+  const newAssignment: ProjectQuestionnaireAssignment = {
+    id: assignmentId,
+    questionnaireId,
+    questionnaireVersion,
+    title: title || '',
+    shareToken: assignmentToken,
+    shareLinkStatus: 'active',
+    assignedAt: new Date().toISOString(),
+    status: 'pending',
+  };
+
+  const existingAssignments = project.assignedQuestionnaires || [];
+  const assignments = [...existingAssignments, newAssignment];
+
+  const updateData: Partial<Project> = {
+    assignedQuestionnaires: assignments,
+  };
+  if (!project.questionnaireId) {
+    updateData.questionnaireId = questionnaireId;
+    updateData.assignedQuestionnaireId = questionnaireId;
     updateData.questionnaireVersion = questionnaireVersion;
   }
-  await updateDoc(docRef, updateData);
-  const proj = await getProject(projectId);
-  if (proj && proj.shareToken) {
-    await syncProjectShareTokenDoc({
-      ...proj,
-      questionnaireId,
-      assignedQuestionnaireId: questionnaireId,
-      questionnaireVersion: questionnaireVersion ?? proj.questionnaireVersion,
-      updatedAt: now,
-    });
-  }
+
+  await updateProject(projectId, updateData);
+  return newAssignment;
+}
+
+export async function removeQuestionnaireAssignmentFromProject(
+  projectId: string,
+  assignmentId: string
+): Promise<void> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error(`Project ${projectId} not found`);
+
+  const assignments = (project.assignedQuestionnaires || []).filter((a) => a.id !== assignmentId);
+  await updateProject(projectId, {
+    assignedQuestionnaires: assignments,
+  });
 }
 
 export async function createProject(
@@ -337,15 +438,32 @@ export async function createProject(
 ): Promise<Project> {
   const id = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
-  const qId = data.questionnaireId || data.assignedQuestionnaireId || DEFAULT_QUESTIONNAIRE.id;
+  const qId = data.questionnaireId || data.assignedQuestionnaireId || undefined;
   const shareToken =
     data.shareToken ||
     `st_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+
+  let assignments: ProjectQuestionnaireAssignment[] = data.assignedQuestionnaires || [];
+  if (assignments.length === 0 && qId) {
+    assignments = [
+      {
+        id: `asgn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        questionnaireId: qId,
+        questionnaireVersion: data.questionnaireVersion || 1,
+        shareToken,
+        shareLinkStatus: 'active',
+        assignedAt: now,
+        status: 'pending',
+      },
+    ];
+  }
+
   const project: Project = {
     ...data,
     id,
     questionnaireId: qId,
     assignedQuestionnaireId: qId,
+    assignedQuestionnaires: assignments,
     shareToken,
     shareLinkStatus: data.shareLinkStatus || 'active',
     status: data.status || 'active',
@@ -379,7 +497,7 @@ export async function updateProject(
     }
     await updateDoc(docRef, sanitize(updated));
     const fullProj = await getProject(id);
-    if (fullProj && fullProj.shareToken) {
+    if (fullProj) {
       await syncProjectShareTokenDoc(fullProj);
     }
   } catch (err) {
@@ -411,16 +529,10 @@ export async function fetchQuestionnaires(): Promise<Questionnaire[]> {
       }
     }
 
-    // Always ensure default questionnaire is present
-    if (list.length === 0) {
-      await seedQuestionnaireIfMissing(DEFAULT_QUESTIONNAIRE);
-      list.push(DEFAULT_QUESTIONNAIRE);
-    }
-
     return list;
   } catch (err) {
     console.warn('Error fetching questionnaires from Firestore:', err);
-    return [DEFAULT_QUESTIONNAIRE];
+    return [];
   }
 }
 
@@ -447,7 +559,7 @@ export async function fetchSubmissions(filter?: SubmissionFilter): Promise<Submi
       const d = docSnap.data();
       items.push({
         id: docSnap.id,
-        questionnaireId: d.questionnaireId || d.formId || DEFAULT_QUESTIONNAIRE.id,
+        questionnaireId: d.questionnaireId || d.formId || '',
         questionnaireVersion: d.questionnaireVersion || 1,
         clientId: d.clientId,
         clientCode: d.clientCode || docSnap.id,
@@ -478,7 +590,7 @@ export async function fetchSubmissions(filter?: SubmissionFilter): Promise<Submi
         if (!items.some((existing) => existing.id === docSnap.id)) {
           items.push({
             id: docSnap.id,
-            questionnaireId: d.questionnaireId || d.formId || DEFAULT_QUESTIONNAIRE.id,
+            questionnaireId: d.questionnaireId || d.formId || '',
             questionnaireVersion: d.questionnaireVersion || 1,
             clientId: d.clientId,
             clientCode: d.clientCode || docSnap.id,
@@ -553,7 +665,11 @@ export interface DashboardMetrics {
   totalClients: number;
   activeProjects: number;
   totalQuestionnaires: number;
+  publishedQuestionnaires: number;
   pendingSubmissions: number;
+  submittedSubmissions: number;
+  reviewedSubmissions: number;
+  archivedSubmissions: number;
   completedSubmissions: number;
 }
 
@@ -566,104 +682,22 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
   ]);
 
   const activeProjects = projects.filter((p) => p.status === 'active').length;
+  const publishedQuestionnaires = questionnaires.filter((q) => q.status === 'published').length;
   const pendingSubmissions = submissions.filter((s) => s.status === 'draft').length;
+  const submittedSubmissions = submissions.filter((s) => s.status === 'submitted').length;
+  const reviewedSubmissions = submissions.filter((s) => s.status === 'reviewed').length;
+  const archivedSubmissions = submissions.filter((s) => s.status === 'archived').length;
   const completedSubmissions = submissions.filter((s) => s.status !== 'draft').length;
 
   return {
     totalClients: clients.length,
     activeProjects,
     totalQuestionnaires: questionnaires.length,
+    publishedQuestionnaires,
     pendingSubmissions,
+    submittedSubmissions,
+    reviewedSubmissions,
+    archivedSubmissions,
     completedSubmissions,
   };
-}
-
-// ---------------------------------------------------------------------------
-// INITIAL SEED & FALLBACKS
-// ---------------------------------------------------------------------------
-
-async function seedInitialClientAndProject(): Promise<Client | null> {
-  try {
-    const clientId = 'client_abc_distribution';
-    const now = new Date().toISOString();
-    const initialClient: Client = {
-      id: clientId,
-      name: 'ABC Company',
-      contactPerson: 'Alex Turner',
-      contactEmail: 'alex@abccompany.com',
-      contactPhone: '+1 (555) 234-5678',
-      notes: 'Initial client requesting distribution and operations system specifications.',
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await setDoc(doc(db, 'clients', clientId), sanitize(initialClient));
-
-    // Seed default projects
-    const projectId = 'proj_inventory_system';
-    const initialProject: Project = {
-      id: projectId,
-      clientId,
-      name: 'Inventory System',
-      description: 'Centralized inventory, beverage stock tracking, damage and returns system.',
-      questionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      assignedQuestionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      status: 'active',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await setDoc(doc(db, 'projects', projectId), sanitize(initialProject));
-
-    return initialClient;
-  } catch (err) {
-    console.warn('Could not seed initial client in Firestore:', err);
-    return null;
-  }
-}
-
-function getLocalFallbackClients(): Client[] {
-  return [
-    {
-      id: 'client_abc_distribution',
-      name: 'ABC Company',
-      contactPerson: 'Alex Turner',
-      contactEmail: 'alex@abccompany.com',
-      contactPhone: '+1 (555) 234-5678',
-      notes: 'Initial client requesting distribution and operations specifications.',
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-}
-
-function getLocalFallbackProjects(clientId?: string): Project[] {
-  const list: Project[] = [
-    {
-      id: 'proj_inventory_system',
-      clientId: 'client_abc_distribution',
-      name: 'Inventory System',
-      description: 'Centralized inventory, beverage stock tracking, damage and returns system.',
-      questionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      assignedQuestionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'proj_website',
-      clientId: 'client_abc_distribution',
-      name: 'Corporate Website',
-      description: 'Public marketing website and customer inquiry portal.',
-      questionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      assignedQuestionnaireId: DEFAULT_QUESTIONNAIRE.id,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-
-  return clientId ? list.filter((p) => p.clientId === clientId) : list;
 }

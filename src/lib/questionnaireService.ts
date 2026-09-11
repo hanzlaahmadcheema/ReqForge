@@ -18,7 +18,6 @@ import {
   QuestionnaireAnswers,
   QuestionnaireVersionSnapshot,
 } from '../types';
-import { DEFAULT_QUESTIONNAIRE } from '../data/defaultQuestionnaire';
 
 export enum OperationType {
   CREATE = 'create',
@@ -92,7 +91,7 @@ function sanitizeForFirestore<T>(data: T): T {
  * Seeds the default questionnaire into Firestore if it doesn't already exist
  */
 export async function seedQuestionnaireIfMissing(
-  questionnaire: Questionnaire = DEFAULT_QUESTIONNAIRE
+  questionnaire: Questionnaire
 ): Promise<void> {
   const qPath = `questionnaires/${questionnaire.id}`;
   try {
@@ -166,90 +165,106 @@ export async function seedQuestionnaireIfMissing(
 }
 
 /**
- * Loads a questionnaire definition by ID.
- * Falls back to DEFAULT_QUESTIONNAIRE if not found or offline.
+ * Loads a questionnaire definition by ID or fetches the active published questionnaire.
+ * Returns null if not found in Firestore.
  */
 export async function getQuestionnaire(
-  questionnaireId: string = DEFAULT_QUESTIONNAIRE.id
-): Promise<Questionnaire> {
+  questionnaireId?: string
+): Promise<Questionnaire | null> {
   try {
-    const qDocRef = doc(db, 'questionnaires', questionnaireId);
-    const snap = await getDoc(qDocRef);
+    if (questionnaireId && questionnaireId.trim()) {
+      const cleanId = questionnaireId.trim();
+      const qDocRef = doc(db, 'questionnaires', cleanId);
+      const snap = await getDoc(qDocRef);
 
-    if (snap.exists()) {
-      const data = snap.data();
+      if (snap.exists()) {
+        const data = snap.data();
 
-      // If full sections are embedded on the questionnaire document
-      if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
-        return {
-          id: questionnaireId,
-          title: data.title || DEFAULT_QUESTIONNAIRE.title,
-          description: data.description || DEFAULT_QUESTIONNAIRE.description,
-          version: Number(data.version) || 1,
-          status: data.status || 'published',
-          sections: data.sections,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-        };
-      }
-
-      // Try to read sections subcollection
-      const secColRef = collection(db, 'questionnaires', questionnaireId, 'sections');
-      const secSnap = await getDocs(secColRef);
-
-      if (!secSnap.empty) {
-        const sectionsList = [];
-        for (const secDoc of secSnap.docs) {
-          const secData = secDoc.data();
-          // Read questions in section
-          const qColRef = collection(
-            db,
-            'questionnaires',
-            questionnaireId,
-            'sections',
-            secDoc.id,
-            'questions'
-          );
-          const qSnap = await getDocs(qColRef);
-          const questionsList = qSnap.docs.map((qd) => qd.data());
-          questionsList.sort((a, b) => (a.order || 0) - (b.order || 0));
-
-          sectionsList.push({
-            id: secDoc.id,
-            questionnaireId,
-            title: secData.title || '',
-            description: secData.description || '',
-            order: secData.order || 0,
-            enabled: secData.enabled ?? true,
-            iconName: secData.iconName,
-            questions: questionsList as any,
-          });
+        // If full sections are embedded on the questionnaire document
+        if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
+          return {
+            id: cleanId,
+            title: data.title || 'Untitled Questionnaire',
+            description: data.description || '',
+            version: Number(data.version) || 1,
+            status: data.status || 'published',
+            sections: data.sections,
+            clientId: data.clientId,
+            projectId: data.projectId,
+            isReusable: data.isReusable ?? true,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+          };
         }
-        sectionsList.sort((a, b) => a.order - b.order);
 
-        return {
-          id: questionnaireId,
-          title: data.title || DEFAULT_QUESTIONNAIRE.title,
-          description: data.description || DEFAULT_QUESTIONNAIRE.description,
-          version: Number(data.version) || 1,
-          status: data.status || 'published',
-          sections: sectionsList,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt,
-        };
+        // Try to read sections subcollection
+        const secColRef = collection(db, 'questionnaires', cleanId, 'sections');
+        const secSnap = await getDocs(secColRef);
+
+        if (!secSnap.empty) {
+          const sectionsList = [];
+          for (const secDoc of secSnap.docs) {
+            const secData = secDoc.data();
+            const qColRef = collection(
+              db,
+              'questionnaires',
+              cleanId,
+              'sections',
+              secDoc.id,
+              'questions'
+            );
+            const qSnap = await getDocs(qColRef);
+            const questionsList = qSnap.docs.map((qd) => qd.data());
+            questionsList.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            sectionsList.push({
+              id: secDoc.id,
+              questionnaireId: cleanId,
+              title: secData.title || '',
+              description: secData.description || '',
+              order: secData.order || 0,
+              enabled: secData.enabled ?? true,
+              iconName: secData.iconName,
+              questions: questionsList as any,
+            });
+          }
+          sectionsList.sort((a, b) => a.order - b.order);
+
+          return {
+            id: cleanId,
+            title: data.title || 'Untitled Questionnaire',
+            description: data.description || '',
+            version: Number(data.version) || 1,
+            status: data.status || 'published',
+            sections: sectionsList,
+            clientId: data.clientId,
+            projectId: data.projectId,
+            isReusable: data.isReusable ?? true,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+          };
+        }
       }
-    } else {
-      // If asking for default, seed in background
-      if (questionnaireId === DEFAULT_QUESTIONNAIRE.id) {
-        seedQuestionnaireIfMissing(DEFAULT_QUESTIONNAIRE).catch(() => {});
-      }
+      return null;
+    }
+
+    // If no ID specified, query the first published questionnaire
+    const qCol = collection(db, 'questionnaires');
+    const qSnap = await getDocs(query(qCol, where('status', '==', 'published'), limit(1)));
+    if (!qSnap.empty) {
+      return getQuestionnaire(qSnap.docs[0].id);
+    }
+
+    // Fallback: query any questionnaire if none are published
+    const anySnap = await getDocs(query(qCol, limit(1)));
+    if (!anySnap.empty) {
+      return getQuestionnaire(anySnap.docs[0].id);
     }
   } catch (err) {
-    console.warn('Using local questionnaire template fallback:', err);
+    console.warn('Error fetching questionnaire from Firestore:', err);
   }
 
-  // Seamless fallback to the verified default template
-  return DEFAULT_QUESTIONNAIRE;
+  return null;
 }
 
 /**
@@ -879,29 +894,10 @@ export async function updateSubmissionStatus(
  * Deletes a submission.
  */
 export async function deleteSubmission(
-  submissionId: string,
-  questionnaireId?: string
+  _submissionId: string,
+  _questionnaireId?: string
 ): Promise<void> {
-  try {
-    const subDocRef = doc(db, 'submissions', submissionId);
-    await deleteDoc(subDocRef);
-  } catch (err) {
-    console.error('Failed deleting from /submissions:', err);
-  }
-
-  if (questionnaireId) {
-    try {
-      const qSubDocRef = doc(db, 'questionnaires', questionnaireId, 'submissions', submissionId);
-      await deleteDoc(qSubDocRef);
-    } catch {
-      // Best-effort
-    }
-  }
-
-  try {
-    const legacyDocRef = doc(db, 'clientResponses', submissionId);
-    await deleteDoc(legacyDocRef);
-  } catch {
-    // Best-effort
-  }
+  // Permanent deletion of submissions is strictly prohibited by security policy.
+  // Submissions follow the lifecycle: draft -> submitted -> reviewed -> archived
+  throw new Error('Permanent deletion of submissions is not permitted. Please use the archive status instead.');
 }

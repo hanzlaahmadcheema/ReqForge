@@ -8,6 +8,7 @@ import {
   Phone,
   FolderKanban,
   FileCheck2,
+  FileQuestion,
   Edit2,
   Archive,
   RotateCcw,
@@ -18,11 +19,12 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import { Client, Project, Submission } from '../../types';
+import { Client, Project, Questionnaire, Submission } from '../../types';
 
 interface ClientsViewProps {
   clients: Client[];
   projects: Project[];
+  questionnaires?: Questionnaire[];
   submissions: Submission[];
   onCreateClient: (data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   onUpdateClient: (id: string, data: Partial<Omit<Client, 'id' | 'createdAt'>>) => Promise<void>;
@@ -36,6 +38,7 @@ interface ClientsViewProps {
 export const ClientsView: React.FC<ClientsViewProps> = ({
   clients,
   projects,
+  questionnaires = [],
   submissions,
   onCreateClient,
   onUpdateClient,
@@ -328,6 +331,81 @@ export const ClientsView: React.FC<ClientsViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* Assigned Questionnaires Section */}
+        {(() => {
+          const assignedQuestionnaireIds = new Set<string>();
+          clientProjects.forEach((p) => {
+            if (p.questionnaireId) assignedQuestionnaireIds.add(p.questionnaireId);
+            if (p.assignedQuestionnaireId) assignedQuestionnaireIds.add(p.assignedQuestionnaireId);
+            p.assignedQuestionnaires?.forEach((a) => assignedQuestionnaireIds.add(a.questionnaireId));
+          });
+
+          const clientAssignedQuestionnaires = questionnaires.filter(
+            (q) => assignedQuestionnaireIds.has(q.id) || q.clientId === selectedClient.id
+          );
+
+          return (
+            <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-stone-900">
+                    Assigned Questionnaires ({clientAssignedQuestionnaires.length})
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Questionnaire schemas mapped to {selectedClient.name}'s systems
+                  </p>
+                </div>
+              </div>
+
+              {clientAssignedQuestionnaires.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-stone-200 rounded-xl text-xs text-stone-400 space-y-1">
+                  <FileQuestion className="w-8 h-8 mx-auto text-stone-300" />
+                  <p>No questionnaires currently assigned to this client's projects.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {clientAssignedQuestionnaires.map((q) => {
+                    const linkedProjects = clientProjects.filter(
+                      (p) =>
+                        p.questionnaireId === q.id ||
+                        p.assignedQuestionnaireId === q.id ||
+                        p.assignedQuestionnaires?.some((a) => a.questionnaireId === q.id)
+                    );
+
+                    return (
+                      <div
+                        key={q.id}
+                        className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/40 space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-bold text-xs text-stone-900">{q.title}</h4>
+                            <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5">
+                              {q.description || 'Requirements specifications template'}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full shrink-0">
+                            v{q.version} • {q.status}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-stone-500 pt-1.5 border-t border-stone-100 flex items-center justify-between">
+                          <span>{q.sections?.length || 0} Sections</span>
+                          <span className="text-stone-400">
+                            {linkedProjects.length > 0
+                              ? `Used by: ${linkedProjects.map((p) => p.name).join(', ')}`
+                              : 'Client Specific'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Client Submissions Section */}
         <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-2xs space-y-4">

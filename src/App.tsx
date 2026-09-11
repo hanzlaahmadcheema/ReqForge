@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Lock } from 'lucide-react';
 import { Questionnaire, QuestionnaireAnswers, Project, Client, AdminRecord } from './types';
-import { DEFAULT_QUESTIONNAIRE } from './data/defaultQuestionnaire';
 import {
   getQuestionnaire,
   getQuestionnaireVersionSnapshot,
@@ -44,8 +43,9 @@ export default function App() {
   const [currentAdmin, setCurrentAdmin] = useState<AdminRecord | null>(null);
   const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(true);
 
-  // Dynamic Questionnaire Data State
-  const [questionnaire, setQuestionnaire] = useState<Questionnaire>(DEFAULT_QUESTIONNAIRE);
+  // Dynamic Questionnaire Data State (pure database-driven, null until loaded)
+  const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null);
+  const [isQuestionnaireLoading, setIsQuestionnaireLoading] = useState<boolean>(true);
 
   // Subscribe to verified Firebase admin authentication & allowlist state
   useEffect(() => {
@@ -71,15 +71,23 @@ export default function App() {
 
   // Fetch questionnaire definition from service / Firestore
   useEffect(() => {
-    getQuestionnaire()
-      .then((loadedQ) => {
-        if (loadedQ) {
-          setQuestionnaire(loadedQ);
-        }
-      })
-      .catch((err) => {
-        console.warn('Could not load questionnaire from service:', err);
-      });
+    const params = new URLSearchParams(window.location.search);
+    const hasProject = params.get('project') || params.get('projectId');
+    // If arriving via share link, the link-verification effect handles loading the specific project questionnaire
+    if (!hasProject) {
+      getQuestionnaire()
+        .then((loadedQ) => {
+          if (loadedQ) {
+            setQuestionnaire(loadedQ);
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not load questionnaire from service:', err);
+        })
+        .finally(() => {
+          setIsQuestionnaireLoading(false);
+        });
+    }
   }, []);
 
   // Read initial client code from URL query (e.g. ?client=AcmeCorp)
@@ -118,6 +126,7 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const rawProj = params.get('project') || params.get('projectId');
       const rawToken = params.get('token');
+      const rawQuestionnaireId = params.get('questionnaire');
 
       // If neither is present, user is at base questionnaire
       if (!rawProj && !rawToken) {
@@ -169,18 +178,31 @@ export default function App() {
             });
           }
 
-          // If project has assigned questionnaire, load its schema (honoring immutable version snapshots)
-          const qId = proj.questionnaireId || proj.assignedQuestionnaireId;
-          if (qId) {
-            const loadedQ = await getQuestionnaire(qId);
+          // Determine target questionnaire: URL override, matching assignment, or project primary
+          let targetQId = rawQuestionnaireId?.trim();
+          let targetQVer = proj.questionnaireVersion;
+
+          if (targetQId && proj.assignedQuestionnaires) {
+            const match = proj.assignedQuestionnaires.find(
+              (a) => a.questionnaireId === targetQId
+            );
+            if (match) {
+              targetQVer = match.questionnaireVersion;
+            }
+          } else if (!targetQId) {
+            targetQId =
+              proj.questionnaireId ||
+              proj.assignedQuestionnaireId ||
+              proj.assignedQuestionnaires?.[0]?.questionnaireId;
+          }
+
+          if (targetQId) {
+            const loadedQ = await getQuestionnaire(targetQId);
             if (loadedQ) {
-              if (
-                proj.questionnaireVersion &&
-                proj.questionnaireVersion !== loadedQ.version
-              ) {
+              if (targetQVer && targetQVer !== loadedQ.version) {
                 const snapshot = await getQuestionnaireVersionSnapshot(
-                  qId,
-                  proj.questionnaireVersion
+                  targetQId,
+                  targetQVer
                 );
                 if (snapshot) {
                   setQuestionnaire({
@@ -208,9 +230,11 @@ export default function App() {
         })
         .finally(() => {
           setIsVerifyingLink(false);
+          setIsQuestionnaireLoading(false);
         });
     } catch {
       setLinkSecurityError('Invalid request parameters.');
+      setIsQuestionnaireLoading(false);
     }
   }, []);
 
@@ -227,10 +251,13 @@ export default function App() {
     setSubmitError(null);
 
     try {
+      const qId = questionnaire?.id || 'general';
+      const qVer = questionnaire?.version || 1;
+
       const result = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId,
-        questionnaireId: questionnaire.id,
-        questionnaireVersion: questionnaire.version,
+        questionnaireId: qId,
+        questionnaireVersion: qVer,
         clientCode: payload.clientCode.trim() || activeClient?.name || clientCode,
         clientId: clientId || activeProject?.clientId || undefined,
         projectId: projectId || activeProject?.id || undefined,
@@ -271,10 +298,13 @@ export default function App() {
     answers: QuestionnaireAnswers;
     existingDraftId?: string;
   }) => {
+    const qId = questionnaire?.id || 'general';
+    const qVer = questionnaire?.version || 1;
+
     const res = await saveQuestionnaireDraft({
       existingSubmissionId: payload.existingDraftId,
-      questionnaireId: questionnaire.id,
-      questionnaireVersion: questionnaire.version,
+      questionnaireId: qId,
+      questionnaireVersion: qVer,
       clientCode: payload.clientCode.trim() || activeClient?.name || clientCode,
       clientId: clientId || activeProject?.clientId || undefined,
       projectId: projectId || activeProject?.id || undefined,
@@ -322,7 +352,7 @@ export default function App() {
 
     return (
       <AdminPanel
-        sections={questionnaire.sections || []}
+        sections={questionnaire?.sections || []}
         defaultClientCode={clientCode !== 'Default Client' ? clientCode : undefined}
         onBackToForm={() => {
           try {
@@ -371,7 +401,7 @@ export default function App() {
             masterDocId={submittedResult.masterDocId}
             clientCode={activeClient?.name || clientCode}
             projectName={activeProject?.name}
-            sections={questionnaire.sections || []}
+            sections={questionnaire?.sections || []}
             answers={submittedResult.answers || {}}
             additionalRequirements={submittedResult.additionalRequirements || ''}
             onReset={() => {
@@ -388,7 +418,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
 
   // If link is actively being verified with Firestore
-  if (isVerifyingLink) {
+  if (isVerifyingLink || (isQuestionnaireLoading && (projectId || window.location.search.includes('project')))) {
     return (
       <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4 text-center">
         <div className="flex items-center gap-2.5 text-stone-600 text-sm font-medium">
@@ -462,6 +492,54 @@ export default function App() {
                 setIsAdminRoute(true);
               }}
               className="text-xs text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
+            >
+              Open Admin Console
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If questionnaire is loading (generic root view)
+  if (isQuestionnaireLoading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4 text-center">
+        <div className="flex items-center gap-2.5 text-stone-600 text-sm font-medium">
+          <div className="w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin" />
+          <span>Loading requirements questionnaire...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // If zero questionnaires exist in Firestore or none is published
+  if (!questionnaire) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4 text-center">
+        <div className="bg-white p-8 rounded-2xl border border-stone-200 shadow-sm max-w-md w-full space-y-4">
+          <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-stone-900">Requirements Platform</h2>
+          <p className="text-xs text-stone-600 leading-relaxed">
+            No questionnaire template is currently published for public access.
+          </p>
+          <p className="text-xs text-stone-500">
+            To create, import, or publish questionnaires, open the Admin Console.
+          </p>
+          <div className="pt-4 border-t border-stone-100 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  window.history.pushState({}, '', '/admin');
+                } catch {
+                  // Ignore
+                }
+                setIsAdminRoute(true);
+              }}
+              className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-xs"
             >
               Open Admin Console
             </button>
