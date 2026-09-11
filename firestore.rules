@@ -1,0 +1,255 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny-by-default: block all access unless explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper: Verify if user is authenticated via Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Verify ID format to prevent injection and malformed keys
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper: Real server-side admin check enforced by verified admin allowlist document in /admins/{uid}
+    // Requires non-anonymous authentication, active admin document existence, enabled == true, and role == 'admin'
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.enabled == true &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper: Validate structure of submission created by clients
+    function isValidSubmission(data) {
+      return data is map &&
+        (
+          ('questionnaireId' in data && data.questionnaireId is string && data.questionnaireId.size() <= 128) ||
+          ('clientCode' in data && data.clientCode is string && data.clientCode.size() <= 128)
+        );
+    }
+
+    // Helper: Verify if a project exists, is active, and possesses an active matching share token
+    function isValidProjectShareToken(projectId, shareToken) {
+      return isValidId(projectId) && isValidId(shareToken) &&
+        exists(/databases/$(database)/documents/projects/$(projectId)/tokens/$(shareToken)) &&
+        get(/databases/$(database)/documents/projects/$(projectId)/tokens/$(shareToken)).data.shareLinkStatus == 'active' &&
+        get(/databases/$(database)/documents/projects/$(projectId)/tokens/$(shareToken)).data.status == 'active';
+    }
+
+    // Helper: Verify that a client submission matches the project's assigned questionnaire, version, and client
+    function isValidProjectSubmission(data) {
+      return 'projectId' in data &&
+        'shareToken' in data &&
+        'questionnaireId' in data &&
+        'questionnaireVersion' in data &&
+        isValidProjectShareToken(data.projectId, data.shareToken) &&
+        data.questionnaireId == get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data.questionnaireId &&
+        data.questionnaireVersion == get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data.questionnaireVersion &&
+        (
+          !('clientId' in get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data) ||
+          get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data.clientId == null ||
+          get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data.clientId == '' ||
+          ('clientId' in data && data.clientId == get(/databases/$(database)/documents/projects/$(data.projectId)/tokens/$(data.shareToken)).data.clientId)
+        );
+    }
+
+    // Helper: Verify that a client update to a draft submission preserves strictly immutable fields and valid token
+    function isValidClientSubmissionUpdate(currentData, nextData) {
+      return currentData.status == 'draft' &&
+        (nextData.status == 'draft' || nextData.status == 'submitted') &&
+        'projectId' in currentData &&
+        'shareToken' in currentData &&
+        'questionnaireId' in currentData &&
+        'questionnaireVersion' in currentData &&
+        'projectId' in nextData &&
+        'shareToken' in nextData &&
+        'questionnaireId' in nextData &&
+        'questionnaireVersion' in nextData &&
+        nextData.projectId == currentData.projectId &&
+        nextData.shareToken == currentData.shareToken &&
+        nextData.questionnaireId == currentData.questionnaireId &&
+        nextData.questionnaireVersion == currentData.questionnaireVersion &&
+        (
+          !('clientId' in currentData) ||
+          currentData.clientId == null ||
+          currentData.clientId == '' ||
+          ('clientId' in nextData && nextData.clientId == currentData.clientId)
+        ) &&
+        isValidProjectShareToken(currentData.projectId, nextData.shareToken);
+    }
+
+    // 0. Admin allowlist collection
+    match /admins/{adminId} {
+      // Authenticated users can read their own record to verify permissions; active admins can read any
+      allow get: if isAuthenticated() && (request.auth.uid == adminId || isAdmin());
+      // Only active authorized admins can list all admins or create, update, delete admin records
+      allow list: if isAdmin();
+      allow create, update, delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // 1. Questionnaires and sub-collections (templates, sections, questions, versions)
+    // Clients can read questionnaire definitions to render the form; modifications strictly require admin
+    match /questionnaires/{questionnaireId} {
+      allow get, list: if isValidId(questionnaireId);
+      allow create, update, delete: if isValidId(questionnaireId) && isAdmin();
+
+      match /sections/{sectionId} {
+        allow get, list: if isValidId(sectionId);
+        allow create, update, delete: if isValidId(sectionId) && isAdmin();
+
+        match /questions/{questionId} {
+          allow get, list: if isValidId(questionId);
+          allow create, update, delete: if isValidId(questionId) && isAdmin();
+        }
+      }
+
+      // Version snapshots: immutable copies created on publish
+      match /versions/{versionId} {
+        allow get, list: if isValidId(versionId);
+        allow create: if isValidId(versionId) && isAdmin();
+        allow update, delete: if false; // strictly immutable historical snapshots
+      }
+
+      // Submissions sub-collection inside a questionnaire
+      match /submissions/{submissionId} {
+        allow list: if isAdmin();
+        allow get: if isValidId(submissionId) && isAdmin();
+        allow create: if isValidId(submissionId) && isValidSubmission(request.resource.data) && (
+          isAdmin() ||
+          (
+            request.resource.data.status == 'draft' &&
+            request.resource.data.questionnaireId == questionnaireId &&
+            isValidProjectSubmission(request.resource.data)
+          )
+        );
+        allow update: if isValidId(submissionId) && (
+          isAdmin() ||
+          (
+            request.resource.data.questionnaireId == questionnaireId &&
+            isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
+            isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
+          )
+        );
+        allow delete: if false; // Permanent deletion of submissions is strictly prohibited
+
+        // Admin-only AI Requirements & Completeness Analysis subcollections
+        match /requirements/{requirementId} {
+          allow read, write: if isValidId(requirementId) && isAdmin();
+        }
+
+        match /analysis/{analysisId} {
+          allow read, write: if isValidId(analysisId) && isAdmin();
+        }
+      }
+    }
+
+    // 2. Global /submissions collection
+    match /submissions/{submissionId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(submissionId) && isAdmin();
+      allow create: if isValidId(submissionId) && isValidSubmission(request.resource.data) && (
+        isAdmin() ||
+        (
+          request.resource.data.status == 'draft' &&
+          isValidProjectSubmission(request.resource.data)
+        )
+      );
+      allow update: if isValidId(submissionId) && (
+        isAdmin() ||
+        (
+          isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
+          isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
+        )
+      );
+      allow delete: if false; // Permanent deletion of submissions is strictly prohibited
+
+      // Admin-only AI Requirements & Completeness Analysis subcollections
+      match /requirements/{requirementId} {
+        allow read, write: if isValidId(requirementId) && isAdmin();
+      }
+
+      match /analysis/{analysisId} {
+        allow read, write: if isValidId(analysisId) && isAdmin();
+      }
+    }
+
+    // Top-level requirements collection for cross-project queries (strictly admin)
+    match /requirements/{requirementId} {
+      allow read, write: if isValidId(requirementId) && isAdmin();
+    }
+
+    // 3. Backward-compatible /clientResponses collection
+    match /clientResponses/{responseId} {
+      allow list: if isAdmin();
+      allow get: if isValidId(responseId) && isAdmin();
+      allow create: if isValidId(responseId) && isValidSubmission(request.resource.data) && (
+        isAdmin() ||
+        (
+          request.resource.data.status == 'draft' &&
+          isValidProjectSubmission(request.resource.data)
+        )
+      );
+      allow update: if isValidId(responseId) && (
+        isAdmin() ||
+        (
+          isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
+          isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
+        )
+      );
+      allow delete: if false; // Permanent deletion of submissions is strictly prohibited
+    }
+
+    // 4. Clients and Projects management collections
+    match /clients/{clientId} {
+      allow read, write: if isValidId(clientId) && isAdmin();
+    }
+
+    match /projects/{projectId} {
+      // Direct access to project records is strictly admin-only.
+      // Unauthenticated clients cannot read, list, create, update, or delete /projects.
+      allow read, write: if isValidId(projectId) && isAdmin();
+
+      // Scoped Project Share-Token access:
+      // A client MUST know both the projectId and the secret shareToken to read project metadata.
+      // Listing tokens is restricted to admins (blocks token enumeration).
+      match /tokens/{shareToken} {
+        allow get: if isValidId(projectId) && isValidId(shareToken) &&
+          resource.data.status == 'active' &&
+          resource.data.shareLinkStatus == 'active' &&
+          resource.data.projectId == projectId;
+        allow list: if isAdmin();
+        allow create, update, delete: if isValidId(shareToken) && isAdmin();
+
+        // Isolated Client Drafts subcollection:
+        // Scoped exclusively to this project + authorized share token.
+        // Client cannot read other projects' drafts or other tokens' drafts.
+        match /drafts/{draftId} {
+          allow get: if isValidId(draftId) &&
+            isValidProjectShareToken(projectId, shareToken);
+          allow list: if isAdmin();
+          allow create: if isValidId(draftId) &&
+            isValidProjectShareToken(projectId, shareToken) &&
+            request.resource.data.projectId == projectId &&
+            request.resource.data.shareToken == shareToken &&
+            request.resource.data.status == 'draft' &&
+            isValidProjectSubmission(request.resource.data);
+          allow update: if isValidId(draftId) &&
+            isValidProjectShareToken(projectId, shareToken) &&
+            request.resource.data.projectId == projectId &&
+            request.resource.data.shareToken == shareToken &&
+            isValidClientSubmissionUpdate(resource.data, request.resource.data);
+          allow delete: if false; // Permanent deletion strictly prohibited
+        }
+      }
+    }
+  }
+}
+

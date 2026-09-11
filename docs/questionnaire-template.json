@@ -1,0 +1,42 @@
+{
+  "questionnaire": {
+    "title": "",
+    "description": "",
+    "sections": [
+      {
+        "section_title": "",
+        "section_description": "",
+        "questions": [
+          {
+            "question_id": "",
+            "question": "",
+            "type": "",
+            "required": false,
+
+            "short_answer": "",
+
+            "option_1": "",
+            "option_2": "",
+            "option_3": "",
+            "option_4": "",
+            "option_5": "",
+
+            "check_1": "",
+            "check_2": "",
+            "check_3": "",
+            "check_4": "",
+            "check_5": "",
+
+            "true": "",
+            "false": "",
+
+            "conditional": {
+              "question_id": "",
+              "answer": ""
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

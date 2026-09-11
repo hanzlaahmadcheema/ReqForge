@@ -1,0 +1,8 @@
+{
+  "name": "Client Requirements Questionnaire",
+  "description": "Professional client requirements questionnaire and admin responses panel with Firestore synchronization, question inspection, and PDF exports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

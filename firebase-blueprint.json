@@ -1,0 +1,372 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "Represents an organization or company requesting software development.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Company or client name",
+          "maxLength": 200
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "Primary contact person",
+          "maxLength": 100
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "Primary email address",
+          "maxLength": 100
+        },
+        "contactPhone": {
+          "type": "string",
+          "description": "Primary phone number",
+          "maxLength": 50
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal notes regarding the client",
+          "maxLength": 1000
+        },
+        "status": {
+          "type": "string",
+          "description": "Client status",
+          "enum": ["active", "archived", "lead"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["name", "status", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A specific software project under a client.",
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "Foreign key reference to Client ID",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "description": "Project title or name",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description and scope overview",
+          "maxLength": 2000
+        },
+        "assignedQuestionnaireId": {
+          "type": "string",
+          "description": "ID of questionnaire template assigned to this project",
+          "maxLength": 128
+        },
+        "questionnaireVersion": {
+          "type": "number",
+          "description": "Pinned version number of assigned questionnaire template"
+        },
+        "shareLinkStatus": {
+          "type": "string",
+          "description": "State of client shareable questionnaire link",
+          "enum": ["active", "revoked"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Current project status",
+          "enum": ["planning", "requirements_gathering", "active", "completed", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["clientId", "name", "status", "createdAt"]
+    },
+    "Questionnaire": {
+      "title": "Questionnaire",
+      "description": "A reusable requirements questionnaire definition.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Questionnaire title",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Overview and instructions for the questionnaire",
+          "maxLength": 2000
+        },
+        "version": {
+          "type": "number",
+          "description": "Integer version number for immutability tracking"
+        },
+        "status": {
+          "type": "string",
+          "description": "Publishing status",
+          "enum": ["draft", "published", "archived"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["title", "version", "status"]
+    },
+    "Section": {
+      "title": "Section",
+      "description": "A logical grouping of questions within a questionnaire.",
+      "type": "object",
+      "properties": {
+        "questionnaireId": {
+          "type": "string",
+          "description": "Parent questionnaire ID",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Section header title",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Section explanation or scope",
+          "maxLength": 1000
+        },
+        "order": {
+          "type": "number",
+          "description": "Display order sequence (1-indexed)"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this section is active in the questionnaire"
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Optional Lucide icon name",
+          "maxLength": 50
+        }
+      },
+      "required": ["questionnaireId", "title", "order", "enabled"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "A single data-driven question with options and conditional logic.",
+      "type": "object",
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "description": "Parent section ID",
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "description": "The prompt or question wording displayed to the client",
+          "maxLength": 500
+        },
+        "description": {
+          "type": "string",
+          "description": "Helper or guidance text",
+          "maxLength": 1000
+        },
+        "example": {
+          "type": "string",
+          "description": "Example answer guidance",
+          "maxLength": 500
+        },
+        "type": {
+          "type": "string",
+          "description": "Supported question type",
+          "enum": ["text", "textarea", "single_choice", "multiple_choice", "yes_no", "number", "date"]
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether an answer is mandatory"
+        },
+        "order": {
+          "type": "number",
+          "description": "Display order index inside section"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this question is active"
+        },
+        "hasOther": {
+          "type": "boolean",
+          "description": "Allows specifying custom other input"
+        },
+        "otherPlaceholder": {
+          "type": "string",
+          "description": "Placeholder for other input",
+          "maxLength": 100
+        },
+        "placeholder": {
+          "type": "string",
+          "description": "Input field placeholder text",
+          "maxLength": 100
+        },
+        "unit": {
+          "type": "string",
+          "description": "Measurement unit or currency symbol",
+          "maxLength": 20
+        }
+      },
+      "required": ["sectionId", "text", "type", "order", "enabled"]
+    },
+    "QuestionnaireVersionSnapshot": {
+      "title": "QuestionnaireVersionSnapshot",
+      "description": "An immutable published snapshot of a questionnaire definition and all its sections and questions at a specific version.",
+      "type": "object",
+      "properties": {
+        "questionnaireId": {
+          "type": "string",
+          "description": "Original questionnaire ID",
+          "maxLength": 128
+        },
+        "version": {
+          "type": "number",
+          "description": "Snapshot version number"
+        },
+        "title": {
+          "type": "string",
+          "description": "Questionnaire title at time of publish",
+          "maxLength": 200
+        },
+        "description": {
+          "type": "string",
+          "description": "Questionnaire description at time of publish",
+          "maxLength": 2000
+        },
+        "publishedAt": {
+          "type": "string",
+          "description": "ISO timestamp of publish"
+        }
+      },
+      "required": ["questionnaireId", "version", "title", "publishedAt"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "A client or project response to a questionnaire template.",
+      "type": "object",
+      "properties": {
+        "questionnaireId": {
+          "type": "string",
+          "description": "The questionnaire template answered",
+          "maxLength": 128
+        },
+        "questionnaireVersion": {
+          "type": "number",
+          "description": "Exact version of questionnaire when answered"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Client ID",
+          "maxLength": 128
+        },
+        "clientCode": {
+          "type": "string",
+          "description": "Client code or name",
+          "maxLength": 128
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Project ID",
+          "maxLength": 128
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "Name of contact person filling the questionnaire",
+          "maxLength": 100
+        },
+        "contactPhone": {
+          "type": "string",
+          "description": "Phone number of contact person",
+          "maxLength": 50
+        },
+        "additionalRequirements": {
+          "type": "string",
+          "description": "Freeform additional requirements notes",
+          "maxLength": 5000
+        },
+        "status": {
+          "type": "string",
+          "description": "Submission status",
+          "enum": ["draft", "submitted", "reviewed", "archived"]
+        },
+        "submittedAtIso": {
+          "type": "string",
+          "description": "ISO string of submission date and time"
+        },
+        "reviewedAt": {
+          "type": "string",
+          "description": "ISO string when submission was reviewed by admin"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO string of submission draft creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO string of last modification"
+        }
+      },
+      "required": ["questionnaireId", "questionnaireVersion", "clientCode", "status"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": { "$ref": "Client" },
+      "description": "Stores client records"
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "Project" },
+      "description": "Stores projects associated with clients"
+    },
+    "/questionnaires/{questionnaireId}": {
+      "schema": { "$ref": "Questionnaire" },
+      "description": "Stores generic questionnaire templates"
+    },
+    "/questionnaires/{questionnaireId}/sections/{sectionId}": {
+      "schema": { "$ref": "Section" },
+      "description": "Subcollection of sections belonging to a questionnaire"
+    },
+    "/questionnaires/{questionnaireId}/sections/{sectionId}/questions/{questionId}": {
+      "schema": { "$ref": "Question" },
+      "description": "Subcollection of questions belonging to a section"
+    },
+    "/questionnaires/{questionnaireId}/versions/{versionId}": {
+      "schema": { "$ref": "QuestionnaireVersionSnapshot" },
+      "description": "Immutable version snapshot created whenever a questionnaire is published"
+    },
+    "/questionnaires/{questionnaireId}/submissions/{submissionId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Subcollection of client submissions for a specific questionnaire"
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Direct collection of submissions for global admin querying and filtering"
+    },
+    "/clientResponses/{responseId}": {
+      "schema": { "$ref": "Submission" },
+      "description": "Legacy collection maintained for backward-compatible response lookups"
+    }
+  }
+}
