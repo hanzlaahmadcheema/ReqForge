@@ -37,27 +37,21 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
     } catch (err: unknown) {
       console.warn('Google Sign-in error:', err);
       const msg = err instanceof Error ? err.message : 'Failed to authenticate with Google.';
-      // User closed popup or unauthorized domain shouldn't block the user
-      if (!msg.includes('popup-closed-by-user') && !msg.includes('unauthorized-domain')) {
+      const errCode = (err as { code?: string })?.code || '';
+
+      if (errCode === 'auth/popup-closed-by-user' || msg.includes('popup-closed-by-user')) {
+        setErrorMessage('Google sign-in was cancelled before completion.');
+      } else if (errCode === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+        setErrorMessage(
+          `Unauthorized Domain (${host}): In Firebase Console, go to Authentication > Settings > Authorized domains and add "${host}" to the list.`
+        );
+      } else {
         setErrorMessage(msg);
       }
     } finally {
       setAuthLoading(false);
     }
-  };
-
-  const handleDirectAdminLogin = () => {
-    const adminRecord: AdminRecord = {
-      uid: 'xIO49yiLQcVhQDDsMdvA6TSzXs32',
-      email: 'hanzlaahmadch@gmail.com',
-      role: 'admin',
-      enabled: true,
-      displayName: 'Hanzla Ahmad',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    saveStoredAdminSession(adminRecord);
-    onSuccess(adminRecord);
   };
 
   const handleSignOutAndRetry = async () => {
@@ -95,7 +89,7 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
                 <span>Access Denied</span>
               </div>
               <p className="text-xs text-rose-700 leading-relaxed">
-                The account <span className="font-semibold text-rose-950">{unauthorizedAccount.email || unauthorizedAccount.uid}</span> is authenticated with Google, but is not authorized in the server allowlist (<code className="font-mono bg-rose-100/80 px-1 py-0.5 rounded text-[11px]">/admins/{'{uid}'}</code>).
+                The Google account <span className="font-semibold text-rose-950">{unauthorizedAccount.email || unauthorizedAccount.uid}</span> is not authorized in the server allowlist (<code className="font-mono bg-rose-100/80 px-1 py-0.5 rounded text-[11px]">/admins/{'{uid}'}</code>).
               </p>
               <p className="text-[11px] text-rose-600">
                 Firestore security rules reject direct requests from accounts not present in the admin allowlist.
@@ -106,7 +100,7 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
               type="button"
               onClick={handleSignOutAndRetry}
               disabled={authLoading}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition-colors cursor-pointer min-h-[44px]"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out & Try Another Account</span>
@@ -116,7 +110,7 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
           /* STANDARD LOGIN PROMPT */
           <div className="space-y-4">
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2.5">
                 <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">{errorMessage}</span>
               </div>
@@ -126,7 +120,7 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
               type="button"
               onClick={handleGoogleSignIn}
               disabled={authLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-stone-300 hover:border-stone-400 bg-white hover:bg-stone-50 text-stone-800 font-medium text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50 min-h-[48px]"
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-stone-300 hover:border-stone-400 bg-white hover:bg-stone-50 text-stone-800 font-medium text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50 min-h-[48px] active:scale-[0.98]"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -149,30 +143,13 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
               <span>{authLoading ? 'Authenticating with Google...' : 'Sign in with Google'}</span>
             </button>
 
-            <div className="relative flex py-0.5 items-center">
-              <div className="flex-grow border-t border-stone-200"></div>
-              <span className="flex-shrink mx-3 text-[10px] text-stone-400 font-semibold uppercase tracking-wider">
-                Or Direct Sign-In
-              </span>
-              <div className="flex-grow border-t border-stone-200"></div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleDirectAdminLogin}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer min-h-[44px]"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Authenticate as hanzlaahmadch@gmail.com</span>
-            </button>
-
             <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/80 text-[11px] text-stone-500 space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-stone-700">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Verified Allowlist Protection</span>
+                <span>Strict Google Authentication</span>
               </div>
               <p>
-                Only Google accounts explicitly registered in the database allowlist with active admin roles are granted console access.
+                Only verified Google accounts registered in the server-side admin allowlist with active admin roles are granted console access.
               </p>
             </div>
           </div>

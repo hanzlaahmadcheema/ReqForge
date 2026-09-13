@@ -98,22 +98,26 @@ service cloud.firestore {
     // 1. Questionnaires and sub-collections (templates, sections, questions, versions)
     // Clients can read questionnaire definitions to render the form; modifications strictly require admin
     match /questionnaires/{questionnaireId} {
-      allow get, list: if isValidId(questionnaireId);
+      allow get: if isValidId(questionnaireId);
+      allow list: if true;
       allow create, update, delete: if isValidId(questionnaireId) && isAdmin();
 
       match /sections/{sectionId} {
-        allow get, list: if isValidId(sectionId);
+        allow get: if isValidId(sectionId);
+        allow list: if true;
         allow create, update, delete: if isValidId(sectionId) && isAdmin();
 
         match /questions/{questionId} {
-          allow get, list: if isValidId(questionId);
+          allow get: if isValidId(questionId);
+          allow list: if true;
           allow create, update, delete: if isValidId(questionId) && isAdmin();
         }
       }
 
       // Version snapshots: immutable copies created on publish
       match /versions/{versionId} {
-        allow get, list: if isValidId(versionId);
+        allow get: if isValidId(versionId);
+        allow list: if true;
         allow create: if isValidId(versionId) && isAdmin();
         allow update, delete: if false; // strictly immutable historical snapshots
       }
@@ -142,11 +146,15 @@ service cloud.firestore {
 
         // Admin-only AI Requirements & Completeness Analysis subcollections
         match /requirements/{requirementId} {
-          allow read, write: if isValidId(requirementId) && isAdmin();
+          allow get: if isValidId(requirementId) && isAdmin();
+          allow list: if isAdmin();
+          allow create, update, delete: if isValidId(requirementId) && isAdmin();
         }
 
         match /analysis/{analysisId} {
-          allow read, write: if isValidId(analysisId) && isAdmin();
+          allow get: if isValidId(analysisId) && isAdmin();
+          allow list: if isAdmin();
+          allow create, update, delete: if isValidId(analysisId) && isAdmin();
         }
       }
     }
@@ -173,17 +181,23 @@ service cloud.firestore {
 
       // Admin-only AI Requirements & Completeness Analysis subcollections
       match /requirements/{requirementId} {
-        allow read, write: if isValidId(requirementId) && isAdmin();
+        allow get: if isValidId(requirementId) && isAdmin();
+        allow list: if isAdmin();
+        allow create, update, delete: if isValidId(requirementId) && isAdmin();
       }
 
       match /analysis/{analysisId} {
-        allow read, write: if isValidId(analysisId) && isAdmin();
+        allow get: if isValidId(analysisId) && isAdmin();
+        allow list: if isAdmin();
+        allow create, update, delete: if isValidId(analysisId) && isAdmin();
       }
     }
 
     // Top-level requirements collection for cross-project queries (strictly admin)
     match /requirements/{requirementId} {
-      allow read, write: if isValidId(requirementId) && isAdmin();
+      allow get: if isValidId(requirementId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if isValidId(requirementId) && isAdmin();
     }
 
     // 3. Backward-compatible /clientResponses collection
@@ -209,13 +223,17 @@ service cloud.firestore {
 
     // 4. Clients and Projects management collections
     match /clients/{clientId} {
-      allow read, write: if isValidId(clientId) && isAdmin();
+      allow get: if isValidId(clientId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if isValidId(clientId) && isAdmin();
     }
 
     match /projects/{projectId} {
       // Direct access to project records is strictly admin-only.
       // Unauthenticated clients cannot read, list, create, update, or delete /projects.
-      allow read, write: if isValidId(projectId) && isAdmin();
+      allow get: if isValidId(projectId) && isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if isValidId(projectId) && isAdmin();
 
       // Scoped Project Share-Token access:
       // A client MUST know both the projectId and the secret shareToken to read project metadata.
