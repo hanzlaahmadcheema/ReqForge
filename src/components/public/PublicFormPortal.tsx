@@ -230,6 +230,8 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
 
     const res = await saveQuestionnaireDraft({
       existingSubmissionId: payload.existingDraftId || existingDraftId,
+      workspaceId: session.workspaceId,
+      ownerId: session.workspaceId,
       questionnaireId: session.questionnaireId,
       questionnaireVersion: session.questionnaireVersion || questionnaire.version,
       clientCode: payload.clientCode || session.clientName || 'Client',
@@ -266,6 +268,8 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     try {
       const res = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId || existingDraftId,
+        workspaceId: session.workspaceId,
+        ownerId: session.workspaceId,
         questionnaireId: session.questionnaireId,
         questionnaireVersion: session.questionnaireVersion || questionnaire.version,
         clientCode: payload.clientCode || session.clientName || 'Client',

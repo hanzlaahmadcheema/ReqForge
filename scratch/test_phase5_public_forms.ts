@@ -245,7 +245,7 @@ async function runPhase5TestSuite() {
   for (const status of statuses) {
     const isAllowed = status === 'active';
     assert(
-      (status === 'active' && isAllowed) || (status !== 'active' && !isAllowed),
+      (status === 'active') === isAllowed,
       'Status Enforcement',
       `Status "${status}" Access Control`,
       status === 'active'

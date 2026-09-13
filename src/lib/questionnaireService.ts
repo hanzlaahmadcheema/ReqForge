@@ -11,7 +11,7 @@ import {
   serverTimestamp,
   type Firestore,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import {
   Questionnaire,
   Submission,
@@ -276,9 +276,12 @@ export async function saveQuestionnaire(
 ): Promise<Questionnaire> {
   const now = new Date().toISOString();
   const docRef = doc(db, 'questionnaires', questionnaire.id);
+  const wsId = questionnaire.workspaceId || auth.currentUser?.uid || undefined;
 
   const payload: Questionnaire = {
     ...questionnaire,
+    workspaceId: wsId,
+    ownerId: questionnaire.ownerId || wsId,
     version: questionnaire.version || 1,
     status: questionnaire.status || 'draft',
     createdAt: questionnaire.createdAt || now,
@@ -308,6 +311,7 @@ export async function publishQuestionnaire(
   const currentVersion = questionnaire.version || 1;
   const isAlreadyPublished = questionnaire.status === 'published';
   const newVersion = isAlreadyPublished ? currentVersion + 1 : currentVersion;
+  const wsId = questionnaire.workspaceId || auth.currentUser?.uid || undefined;
 
   // 1. Snapshot historical version before publishing
   try {
@@ -339,6 +343,8 @@ export async function publishQuestionnaire(
   // 2. Save updated published questionnaire
   const publishedPayload: Questionnaire = {
     ...questionnaire,
+    workspaceId: wsId,
+    ownerId: questionnaire.ownerId || wsId,
     version: newVersion,
     status: 'published',
     createdAt: questionnaire.createdAt || now,
@@ -399,6 +405,7 @@ export async function duplicateQuestionnaire(
 ): Promise<Questionnaire> {
   const newId = `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
+  const wsId = source.workspaceId || auth.currentUser?.uid || undefined;
 
   // Create mapping of old question IDs to new question IDs
   const idMap = new Map<string, string>();
@@ -444,6 +451,8 @@ export async function duplicateQuestionnaire(
 
   const duplicated: Questionnaire = {
     id: newId,
+    workspaceId: wsId,
+    ownerId: source.ownerId || wsId,
     title: `Copy of ${source.title}`,
     description: source.description || '',
     version: 1,
@@ -487,6 +496,8 @@ export async function deleteQuestionnaire(id: string): Promise<void> {
 
 export interface SaveSubmissionParams {
   existingSubmissionId?: string;
+  workspaceId?: string;
+  ownerId?: string;
   questionnaireId: string;
   questionnaireVersion: number;
   clientCode: string;
@@ -532,6 +543,8 @@ export async function saveQuestionnaireDraft(
 ): Promise<{ submissionId: string }> {
   const {
     existingSubmissionId,
+    workspaceId,
+    ownerId,
     questionnaireId,
     questionnaireVersion,
     clientCode,
@@ -546,6 +559,8 @@ export async function saveQuestionnaireDraft(
 
   const cleanClient = (clientCode.trim() || 'DefaultClient').replace(/[^a-zA-Z0-9_-]/g, '_');
   const now = new Date().toISOString();
+  const wsId = workspaceId || auth.currentUser?.uid || undefined;
+  const ownId = ownerId || wsId || undefined;
 
   // Compute secure draft ID if projectId and shareToken are provided
   let submissionId = existingSubmissionId;
@@ -559,6 +574,8 @@ export async function saveQuestionnaireDraft(
 
   const draftPayload: Submission = {
     id: submissionId,
+    workspaceId: wsId,
+    ownerId: ownId,
     questionnaireId,
     questionnaireVersion,
     clientId: clientId || null as any,
@@ -691,6 +708,8 @@ export async function saveQuestionnaireSubmission(
 ): Promise<{ submissionId: string; docId: string }> {
   const {
     existingSubmissionId,
+    workspaceId,
+    ownerId,
     questionnaireId,
     questionnaireVersion,
     clientCode,
@@ -712,6 +731,8 @@ export async function saveQuestionnaireSubmission(
   const minutes = String(now.getMinutes()).padStart(2, '0');
   const seconds = String(now.getSeconds()).padStart(2, '0');
   const timestampStr = `${year}_${month}_${day}_${hours}${minutes}${seconds}`;
+  const wsId = workspaceId || auth.currentUser?.uid || undefined;
+  const ownId = ownerId || wsId || undefined;
 
   // If transitioning from an existing draft, keep that exact ID; otherwise use secure draft ID or generate new timestamped ID
   let submissionId = existingSubmissionId;
@@ -724,6 +745,8 @@ export async function saveQuestionnaireSubmission(
 
   const submissionPayload: Submission = {
     id: submissionId,
+    workspaceId: wsId,
+    ownerId: ownId,
     questionnaireId,
     questionnaireVersion,
     clientId: clientId || null as any,

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { PublicForm, PublicFormInfo, AuthorizedFormSession } from '../types';
+import { PublicForm, PublicFormInfo, AuthorizedFormSession, PublicFormSecurityRecord } from '../types';
 import { hashPin, unsealShareToken } from '../lib/cryptoUtils';
 
 export async function handleGetPublicFormInfo(req: Request, res: Response): Promise<void> {
@@ -21,6 +21,7 @@ export async function handleGetPublicFormInfo(req: Request, res: Response): Prom
     }
 
     const data = snap.data() as PublicForm;
+    // Strictly project safe public metadata: never return pinHash, pinSalt, or capability tokens
     const safeInfo: PublicFormInfo = {
       id: data.id,
       title: data.title || 'Client Requirements Questionnaire',
@@ -83,14 +84,42 @@ export async function handleVerifyPublicFormPin(req: Request, res: Response): Pr
       return;
     }
 
+    // Read security credentials from isolated collection
+    let pinHash = form.pinHash;
+    let pinSalt = form.pinSalt;
+    let encryptedShareToken = form.encryptedShareToken;
+    let iv = form.iv;
+    let authTag = form.authTag;
+    let shareToken = form.shareToken;
+
+    try {
+      const secSnap = await getDoc(doc(db, 'publicFormsSecurity', publicFormId));
+      if (secSnap.exists()) {
+        const secData = secSnap.data() as PublicFormSecurityRecord;
+        pinHash = secData.pinHash;
+        pinSalt = secData.pinSalt;
+        encryptedShareToken = secData.encryptedShareToken;
+        iv = secData.iv;
+        authTag = secData.authTag;
+        shareToken = secData.shareToken || shareToken;
+      }
+    } catch (secErr) {
+      console.warn('Could not read isolated publicFormsSecurity doc:', secErr);
+    }
+
     if (form.hasPin) {
       if (!pin) {
         res.status(400).json({ success: false, error: 'Access PIN is required' });
         return;
       }
 
-      const inputHash = await hashPin(pin, form.pinSalt);
-      if (inputHash !== form.pinHash) {
+      if (!pinSalt || !pinHash) {
+        res.status(500).json({ success: false, error: 'Security credentials misconfigured' });
+        return;
+      }
+
+      const inputHash = await hashPin(pin, pinSalt);
+      if (inputHash !== pinHash) {
         res.status(401).json({
           success: false,
           error: 'Incorrect access PIN. Please check the code provided by your administrator.',
@@ -99,14 +128,14 @@ export async function handleVerifyPublicFormPin(req: Request, res: Response): Pr
       }
     }
 
-    let tokenToReturn = form.shareToken;
-    if (form.hasPin && form.encryptedShareToken && form.iv && form.authTag) {
+    let tokenToReturn = shareToken || '';
+    if (form.hasPin && encryptedShareToken && iv && authTag && pin && pinSalt) {
       const decrypted = await unsealShareToken(
-        form.encryptedShareToken,
-        form.iv,
-        form.authTag,
+        encryptedShareToken,
+        iv,
+        authTag,
         pin,
-        form.pinSalt
+        pinSalt
       );
       if (decrypted) {
         tokenToReturn = decrypted;
@@ -115,6 +144,7 @@ export async function handleVerifyPublicFormPin(req: Request, res: Response): Pr
 
     const session: AuthorizedFormSession = {
       publicFormId: form.id,
+      workspaceId: form.workspaceId,
       projectId: form.projectId,
       shareToken: tokenToReturn,
       questionnaireId: form.questionnaireId,

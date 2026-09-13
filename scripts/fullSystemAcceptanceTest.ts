@@ -79,30 +79,26 @@ async function runAcceptanceSuite() {
 
     assert(
       rules.includes('match /questionnaires/{questionnaireId}') &&
-        rules.includes('allow create, update, delete: if isValidId(questionnaireId) && isAdmin();'),
+        rules.includes('resource.data.workspaceId == request.auth.uid || isAdmin()'),
       '1. AUTH',
       'Client Cannot Modify Questionnaire Definitions',
-      'Enforced admin-only writes on /questionnaires'
+      'Enforced workspace owner / admin writes on /questionnaires'
     );
 
     assert(
       rules.includes('match /requirements/{requirementId}') &&
-        (rules.includes('allow read, write: if isValidId(requirementId) && isAdmin();') ||
-          (rules.includes('allow get: if isValidId(requirementId) && isAdmin();') &&
-            rules.includes('allow create, update, delete: if isValidId(requirementId) && isAdmin();'))),
+        rules.includes('data.workspaceId == request.auth.uid || isAdmin()'),
       '1. AUTH',
       'Client Cannot Access AI Requirements',
-      'Enforced admin-only read/write on /requirements'
+      'Enforced workspace owner / admin read/write on /requirements'
     );
 
     assert(
       rules.includes('match /analysis/{analysisId}') &&
-        (rules.includes('allow read, write: if isValidId(analysisId) && isAdmin();') ||
-          (rules.includes('allow get: if isValidId(analysisId) && isAdmin();') &&
-            rules.includes('allow create, update, delete: if isValidId(analysisId) && isAdmin();'))),
+        rules.includes('data.workspaceId == request.auth.uid || isAdmin()'),
       '1. AUTH',
       'Client Cannot Access AI Analysis',
-      'Enforced admin-only read/write on /analysis'
+      'Enforced workspace owner / admin read/write on /analysis'
     );
 
     assert(

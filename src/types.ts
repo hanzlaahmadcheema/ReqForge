@@ -92,6 +92,8 @@ export type QuestionnaireSection = Section;
 
 export interface Questionnaire {
   id: string;
+  workspaceId?: string;
+  ownerId?: string;
   title: string;
   description: string;
   version: number;
@@ -127,6 +129,8 @@ export type QuestionnaireAnswers = Record<string, AnswerValue>;
 
 export interface Client {
   id: string;
+  workspaceId?: string;
+  ownerId?: string;
   name: string;
   contactPerson?: string;
   contactEmail?: string;
@@ -150,6 +154,8 @@ export interface ProjectQuestionnaireAssignment {
 
 export interface Project {
   id: string;
+  workspaceId?: string;
+  ownerId?: string;
   clientId: string;
   name: string;
   description?: string;
@@ -166,6 +172,8 @@ export interface Project {
 
 export interface Submission {
   id: string;
+  workspaceId?: string;
+  ownerId?: string;
   questionnaireId?: string;
   questionnaireVersion?: number;
   clientId?: string;
@@ -333,6 +341,8 @@ export type PublicFormStatus = 'active' | 'disabled' | 'closed' | 'revoked';
 
 export interface PublicForm {
   id: string; // Public identifier, e.g. "pub_a8f9c1"
+  workspaceId?: string;
+  ownerId?: string;
   title: string; // Form title, e.g. "Acme Corp Inventory Requirements"
   description?: string; // High-level description for client
   instructions?: string; // Completion instructions
@@ -345,8 +355,8 @@ export interface PublicForm {
   questionnaireId: string; // Questionnaire binding
   questionnaireVersion: number;
   shareToken: string; // Capability share-token matching /projects/{projectId}/tokens/{shareToken}
-  pinHash: string; // Salted cryptographic hash of PIN
-  pinSalt: string; // Unique cryptographic salt for this form
+  pinHash?: string; // Salted cryptographic hash of PIN (isolated in security doc)
+  pinSalt?: string; // Unique cryptographic salt for this form
   encryptedShareToken?: string; // AES-256 encrypted capability token
   iv?: string; // Initialization vector for token encryption
   authTag?: string; // Authentication tag for AES-256-GCM
@@ -360,6 +370,7 @@ export interface PublicForm {
 // Safe metadata exposed to unauthenticated public client before PIN verification
 export interface PublicFormInfo {
   id: string;
+  workspaceId?: string;
   title: string;
   description?: string;
   instructions?: string;
@@ -373,6 +384,7 @@ export interface PublicFormInfo {
 // Session state after successful PIN verification
 export interface AuthorizedFormSession {
   publicFormId: string;
+  workspaceId?: string;
   projectId: string;
   shareToken: string;
   questionnaireId: string;
@@ -382,6 +394,41 @@ export interface AuthorizedFormSession {
   formTitle: string;
   instructions?: string;
   verifiedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// PHASE 6: MULTI-TENANT WORKSPACE & ISOLATION TYPES
+// ---------------------------------------------------------------------------
+
+export interface Workspace {
+  id: string; // Exactly user.uid (1 registered user = exactly 1 workspace)
+  name: string;
+  ownerId: string; // user.uid
+  ownerEmail: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  displayName?: string;
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicFormSecurityRecord {
+  publicFormId: string;
+  workspaceId: string;
+  ownerId: string;
+  pinHash: string;
+  pinSalt: string;
+  encryptedShareToken: string;
+  iv: string;
+  authTag: string;
+  shareToken?: string;
+  updatedAt: string;
 }
 
 

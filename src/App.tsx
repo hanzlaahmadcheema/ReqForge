@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Lock } from 'lucide-react';
-import { Questionnaire, QuestionnaireAnswers, Project, Client, AdminRecord } from './types';
+import type { User } from 'firebase/auth';
+import { Questionnaire, QuestionnaireAnswers, Project, Client, AdminRecord, Workspace } from './types';
 import {
   getQuestionnaire,
   getQuestionnaireVersionSnapshot,
@@ -13,7 +14,7 @@ import {
   saveQuestionnaireDraft,
 } from './lib/questionnaireService';
 import { getProject, getClient, getProjectByShareToken } from './lib/managementService';
-import { subscribeToAdminAuth, signOutAdmin } from './lib/adminAuthService';
+import { subscribeToAuth, signOutAdmin } from './lib/adminAuthService';
 import { SuccessView } from './components/SuccessView';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminPinPrompt } from './components/AdminPinPrompt';
@@ -73,6 +74,8 @@ export const parseCurrentRoute = (): AppRoute => {
 
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(parseCurrentRoute);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [currentAdmin, setCurrentAdmin] = useState<AdminRecord | null>(null);
   const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(true);
 
@@ -89,9 +92,11 @@ export default function App() {
   const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null);
   const [isQuestionnaireLoading, setIsQuestionnaireLoading] = useState<boolean>(true);
 
-  // Subscribe to verified Firebase admin authentication & allowlist state
+  // Subscribe to verified Firebase authentication & multi-tenant workspace state
   useEffect(() => {
-    const unsubscribe = subscribeToAdminAuth((_user, adminRecord, loading) => {
+    const unsubscribe = subscribeToAuth((user, workspace, adminRecord, loading) => {
+      setCurrentUser(user);
+      setCurrentWorkspace(workspace);
       setCurrentAdmin(adminRecord);
       setAdminAuthLoading(loading);
     });
@@ -298,6 +303,8 @@ export default function App() {
 
       const result = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId,
+        workspaceId: activeProject?.workspaceId || undefined,
+        ownerId: activeProject?.ownerId || activeProject?.workspaceId || undefined,
         questionnaireId: qId,
         questionnaireVersion: qVer,
         clientCode: payload.clientCode.trim() || activeClient?.name || clientCode,
@@ -345,6 +352,8 @@ export default function App() {
 
     const res = await saveQuestionnaireDraft({
       existingSubmissionId: payload.existingDraftId,
+      workspaceId: activeProject?.workspaceId || undefined,
+      ownerId: activeProject?.ownerId || activeProject?.workspaceId || undefined,
       questionnaireId: qId,
       questionnaireVersion: qVer,
       clientCode: payload.clientCode.trim() || activeClient?.name || clientCode,
@@ -360,7 +369,7 @@ export default function App() {
   };
 
   // ---------------------------------------------------------------------------
-  // Admin View (URL: /admin, protected by Google Sign-In & /admins/{uid} allowlist)
+  // Admin View (URL: /admin, multi-tenant workspace dashboard)
   // ---------------------------------------------------------------------------
   if (route.type === 'admin') {
     if (adminAuthLoading) {
@@ -368,17 +377,19 @@ export default function App() {
         <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
           <div className="flex items-center gap-2.5 text-stone-600 text-sm font-medium">
             <div className="w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin" />
-            <span>Verifying administrator authorization...</span>
+            <span>Verifying session and workspace...</span>
           </div>
         </div>
       );
     }
 
-    if (!currentAdmin) {
+    if (!currentUser || !currentWorkspace) {
       return (
         <AdminPinPrompt
-          onSuccess={(admin) => {
-            setCurrentAdmin(admin);
+          onSuccess={(user, workspace, adminRecord) => {
+            setCurrentUser(user);
+            setCurrentWorkspace(workspace);
+            setCurrentAdmin(adminRecord);
           }}
           onCancel={() => {
             navigateTo('/', { type: 'home' });
@@ -390,13 +401,19 @@ export default function App() {
     return (
       <AdminPanel
         sections={questionnaire?.sections || []}
+        currentWorkspace={currentWorkspace}
+        currentUser={currentUser}
+        adminRecord={currentAdmin}
         defaultClientCode={clientCode !== 'Default Client' ? clientCode : undefined}
         onBackToForm={() => {
           navigateTo('/', { type: 'home' });
         }}
         onLock={async () => {
           await signOutAdmin();
+          setCurrentUser(null);
+          setCurrentWorkspace(null);
           setCurrentAdmin(null);
+          navigateTo('/', { type: 'home' });
         }}
       />
     );

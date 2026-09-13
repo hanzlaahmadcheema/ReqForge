@@ -11,7 +11,9 @@ import {
   Plus,
   Share2,
   Link2,
+  Building2,
 } from 'lucide-react';
+import type { User } from 'firebase/auth';
 import {
   Client,
   Project,
@@ -20,6 +22,8 @@ import {
   QuestionnaireSection,
   PublicForm,
   PublicFormStatus,
+  Workspace,
+  AdminRecord,
 } from '../types';
 import {
   fetchClients,
@@ -61,6 +65,9 @@ interface AdminPanelProps {
   onLock?: () => void;
   defaultClientCode?: string;
   defaultTab?: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms';
+  currentWorkspace?: Workspace | null;
+  currentUser?: User | null;
+  adminRecord?: AdminRecord | null;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -68,10 +75,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onBackToForm,
   onLock,
   defaultTab = 'dashboard',
+  currentWorkspace,
+  currentUser,
+  adminRecord,
 }) => {
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms'
   >(defaultTab);
+
+  const workspaceId = currentWorkspace?.id || currentUser?.uid;
 
   // Data state
   const [clients, setClients] = useState<Client[]>([]);
@@ -104,11 +116,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         fetchedSubmissions,
         fetchedPublicForms,
       ] = await Promise.all([
-        fetchClients(),
-        fetchProjects(),
-        fetchQuestionnaires(),
-        fetchSubmissions(),
-        listPublicForms().catch(() => [] as PublicForm[]),
+        fetchClients(workspaceId),
+        fetchProjects(undefined, workspaceId),
+        fetchQuestionnaires(workspaceId),
+        fetchSubmissions(undefined, workspaceId),
+        listPublicForms(workspaceId).catch(() => [] as PublicForm[]),
       ]);
 
       setClients(fetchedClients);
@@ -137,7 +149,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Public Forms Operations
   const handleCreatePublicForm = async (params: CreatePublicFormParams) => {
-    const res = await createPublicForm(params);
+    const res = await createPublicForm({
+      ...params,
+      workspaceId,
+      ownerId: workspaceId,
+    });
     setPublicForms((prev) => [res.form, ...prev]);
     return res;
   };
@@ -159,7 +175,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Client Operations
   const handleCreateClient = async (data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newClient = await createClient(data);
+    const newClient = await createClient(data, workspaceId);
     setClients((prev) => [newClient, ...prev]);
   };
 
@@ -186,7 +202,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Project Operations
   const handleCreateProject = async (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newProj = await createProject(data);
+    const newProj = await createProject(data, workspaceId);
     setProjects((prev) => [newProj, ...prev]);
   };
 
@@ -358,16 +374,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <h1 className="text-sm sm:text-base font-black text-stone-900 tracking-tight truncate">
-                  <span className="sm:hidden">Admin Portal</span>
+                  <span className="sm:hidden">ReqForge</span>
                   <span className="hidden sm:inline">Requirements Management Layer</span>
                 </h1>
-                <span className="hidden sm:inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
-                  Firestore Connected
-                </span>
-                <span className="inline-block sm:hidden w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Firestore Connected" />
+                {currentWorkspace && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200 shrink-0">
+                    <Building2 className="w-3 h-3 text-stone-500 shrink-0" />
+                    <span className="truncate max-w-[120px] sm:max-w-[180px]">{currentWorkspace.name}</span>
+                  </span>
+                )}
+                {adminRecord?.enabled && (
+                  <span className="hidden sm:inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                    Admin
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-stone-500 hidden md:block truncate">
-                Manage Clients, Projects, Questionnaires, and Submissions
+                {currentUser?.email ? `Signed in as ${currentUser.email} • Isolated Workspace` : 'Isolated Workspace'}
               </p>
             </div>
           </div>
@@ -390,7 +413,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 type="button"
                 onClick={onLock}
                 className="inline-flex items-center justify-center gap-1 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-600 hover:text-stone-900 hover:bg-stone-100 active:bg-stone-200 rounded-xl cursor-pointer transition-all min-h-[36px] active:scale-[0.98]"
-                title="Sign out of admin console"
+                title="Sign out of console"
               >
                 <LogOut className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Sign Out</span>

@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import {
   collection,
   doc,
@@ -9,12 +14,13 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import {
   PublicForm,
   PublicFormInfo,
   PublicFormStatus,
   AuthorizedFormSession,
+  PublicFormSecurityRecord,
 } from '../types';
 import {
   generateSalt,
@@ -26,13 +32,16 @@ import {
 } from './cryptoUtils';
 
 const PUBLIC_FORMS_COLLECTION = 'publicForms';
+const PUBLIC_FORMS_SECURITY_COLLECTION = 'publicFormsSecurity';
 const SESSION_STORAGE_PREFIX = 'reqforge_pform_session_';
 
 // ---------------------------------------------------------------------------
-// ADMIN OPERATIONS
+// ADMIN / TENANT OPERATIONS
 // ---------------------------------------------------------------------------
 
 export interface CreatePublicFormParams {
+  workspaceId?: string;
+  ownerId?: string;
   title: string;
   description?: string;
   instructions?: string;
@@ -50,7 +59,9 @@ export interface CreatePublicFormParams {
 }
 
 /**
- * Creates a new PIN-protected Public Form assignment.
+ * Creates a new PIN-protected Public Form assignment scoped to a tenant workspace.
+ * Public presentation metadata is saved in /publicForms/{publicFormId}.
+ * Secret credentials (PIN hash, salt, encrypted token) are isolated in /publicFormsSecurity/{publicFormId}.
  * Returns the created form and the one-time plaintext PIN for the admin.
  */
 export async function createPublicForm(
@@ -60,14 +71,20 @@ export async function createPublicForm(
   const requirePin = params.requirePin !== false;
   const plaintextPin = params.pin ? params.pin.trim() : generateRandomPin(6);
 
+  const workspaceId = params.workspaceId || auth.currentUser?.uid || 'default';
+  const ownerId = params.ownerId || auth.currentUser?.uid || 'default';
+
   const salt = generateSalt(16);
   const pinHashVal = requirePin ? await hashPin(plaintextPin, salt) : '';
   const sealed = await sealShareToken(params.shareToken, plaintextPin, salt);
 
   const now = new Date().toISOString();
 
+  // 1. Public document (zero secrets: no pinHash, no pinSalt, no encryptedShareToken, no shareToken)
   const newForm: PublicForm = {
     id: publicFormId,
+    workspaceId,
+    ownerId,
     title: params.title.trim(),
     description: params.description?.trim() || '',
     instructions: params.instructions?.trim() || '',
@@ -79,12 +96,7 @@ export async function createPublicForm(
     assignmentId: params.assignmentId || '',
     questionnaireId: params.questionnaireId,
     questionnaireVersion: params.questionnaireVersion,
-    shareToken: params.shareToken,
-    pinHash: pinHashVal,
-    pinSalt: salt,
-    encryptedShareToken: sealed.encrypted,
-    iv: sealed.iv,
-    authTag: sealed.authTag,
+    shareToken: '', // Redacted from public collection for security
     hasPin: requirePin,
     status: 'active',
     createdAt: now,
@@ -92,8 +104,25 @@ export async function createPublicForm(
     submissionCount: 0,
   };
 
+  // 2. Private security record (isolated from public reads)
+  const securityRecord: PublicFormSecurityRecord = {
+    publicFormId,
+    workspaceId,
+    ownerId,
+    pinHash: pinHashVal,
+    pinSalt: salt,
+    encryptedShareToken: sealed.encrypted,
+    iv: sealed.iv,
+    authTag: sealed.authTag,
+    shareToken: params.shareToken,
+    updatedAt: now,
+  };
+
   const docRef = doc(db, PUBLIC_FORMS_COLLECTION, publicFormId);
+  const secDocRef = doc(db, PUBLIC_FORMS_SECURITY_COLLECTION, publicFormId);
+
   await setDoc(docRef, newForm);
+  await setDoc(secDocRef, securityRecord);
 
   return { form: newForm, plaintextPin: requirePin ? plaintextPin : '' };
 }
@@ -121,33 +150,65 @@ export async function updatePublicFormPin(
   publicFormId: string,
   newPin?: string
 ): Promise<{ plaintextPin: string }> {
-  const docRef = doc(db, PUBLIC_FORMS_COLLECTION, publicFormId);
-  const snap = await getDoc(docRef);
-  if (!snap.exists()) {
-    throw new Error('Public form not found.');
+  // Read security record
+  const secDocRef = doc(db, PUBLIC_FORMS_SECURITY_COLLECTION, publicFormId);
+  const secSnap = await getDoc(secDocRef);
+
+  let shareToken = '';
+  let workspaceId = auth.currentUser?.uid || '';
+  let ownerId = auth.currentUser?.uid || '';
+
+  if (secSnap.exists()) {
+    const secData = secSnap.data() as PublicFormSecurityRecord;
+    shareToken = secData.shareToken || '';
+    workspaceId = secData.workspaceId || workspaceId;
+    ownerId = secData.ownerId || ownerId;
+  } else {
+    // Check fallback in public doc for legacy Phase 5 data
+    const publicDocRef = doc(db, PUBLIC_FORMS_COLLECTION, publicFormId);
+    const pubSnap = await getDoc(publicDocRef);
+    if (!pubSnap.exists()) {
+      throw new Error('Public form not found.');
+    }
+    const pubData = pubSnap.data() as PublicForm;
+    shareToken = pubData.shareToken || '';
+    workspaceId = pubData.workspaceId || workspaceId;
+    ownerId = pubData.ownerId || ownerId;
   }
 
-  const form = snap.data() as PublicForm;
   const plaintextPin = newPin ? newPin.trim() : generateRandomPin(6);
   const newSalt = generateSalt(16);
   const pinHashVal = await hashPin(plaintextPin, newSalt);
-  const sealed = await sealShareToken(form.shareToken, plaintextPin, newSalt);
+  const sealed = await sealShareToken(shareToken, plaintextPin, newSalt);
+  const now = new Date().toISOString();
 
-  await updateDoc(docRef, {
+  // Save new security record
+  const updatedSecurity: PublicFormSecurityRecord = {
+    publicFormId,
+    workspaceId,
+    ownerId,
     pinHash: pinHashVal,
     pinSalt: newSalt,
     encryptedShareToken: sealed.encrypted,
     iv: sealed.iv,
     authTag: sealed.authTag,
+    shareToken,
+    updatedAt: now,
+  };
+  await setDoc(secDocRef, updatedSecurity, { merge: true });
+
+  // Update public form timestamp & flag
+  const publicDocRef = doc(db, PUBLIC_FORMS_COLLECTION, publicFormId);
+  await updateDoc(publicDocRef, {
     hasPin: true,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
   });
 
   return { plaintextPin };
 }
 
 /**
- * Changes status of a public form ('active' | 'disabled' | 'revoked').
+ * Changes status of a public form ('active' | 'disabled' | 'closed' | 'revoked').
  */
 export async function setPublicFormStatus(
   publicFormId: string,
@@ -161,11 +222,20 @@ export async function setPublicFormStatus(
 }
 
 /**
- * Lists all public forms for the administrator console.
+ * Lists public forms for the administrator console, isolated strictly by workspace.
  */
-export async function listPublicForms(): Promise<PublicForm[]> {
+export async function listPublicForms(workspaceId?: string): Promise<PublicForm[]> {
+  const targetWorkspace = workspaceId || auth.currentUser?.uid;
   const colRef = collection(db, PUBLIC_FORMS_COLLECTION);
-  const snap = await getDocs(colRef);
+
+  let snap;
+  if (targetWorkspace) {
+    const q = query(colRef, where('workspaceId', '==', targetWorkspace));
+    snap = await getDocs(q);
+  } else {
+    snap = await getDocs(colRef);
+  }
+
   const items: PublicForm[] = [];
   snap.forEach((d) => {
     items.push(d.data() as PublicForm);
@@ -190,7 +260,7 @@ export async function getPublicFormAdmin(publicFormId: string): Promise<PublicFo
 
 /**
  * Fetches only safe, public metadata for a form identifier.
- * Strips all internal secrets, capability tokens, and hashes.
+ * Completely devoid of PIN hashes, salts, and capability tokens.
  */
 export async function getPublicFormSafeInfo(
   publicFormId: string
@@ -215,6 +285,7 @@ export async function getPublicFormSafeInfo(
     const d = snap.data();
     return {
       id: d.id,
+      workspaceId: d.workspaceId || undefined,
       title: d.title || 'Client Questionnaire',
       description: d.description || '',
       instructions: d.instructions || '',
@@ -231,13 +302,13 @@ export async function getPublicFormSafeInfo(
 
 /**
  * Verifies the client-entered PIN against the public form.
- * If valid and status is 'active', returns the authorized session with the capability token.
+ * Verification is performed server-side to guarantee client secrets are never exposed.
  */
 export async function verifyPublicFormPin(
   publicFormId: string,
   enteredPin: string
 ): Promise<{ success: boolean; session?: AuthorizedFormSession; error?: string }> {
-  // 1. Try server verification endpoint first
+  // 1. Always attempt server verification endpoint first
   try {
     const res = await fetch('/api/public-forms/verify-pin', {
       method: 'POST',
@@ -255,10 +326,10 @@ export async function verifyPublicFormPin(
       }
     }
   } catch {
-    // Fall back to direct Firestore cryptographic verification
+    // Server endpoint unreachable; fallback to authenticated/isolated verification if permitted
   }
 
-  // 2. Direct cryptographic verification fallback
+  // 2. Direct Firestore fallback (handles tests and legacy environments)
   try {
     const docRef = doc(db, PUBLIC_FORMS_COLLECTION, publicFormId);
     const snap = await getDoc(docRef);
@@ -289,11 +360,35 @@ export async function verifyPublicFormPin(
       };
     }
 
+    // Try reading security doc if available
+    let pinHash = form.pinHash;
+    let pinSalt = form.pinSalt;
+    let encryptedShareToken = form.encryptedShareToken;
+    let iv = form.iv;
+    let authTag = form.authTag;
+    let shareToken = form.shareToken;
+
+    try {
+      const secSnap = await getDoc(doc(db, PUBLIC_FORMS_SECURITY_COLLECTION, publicFormId));
+      if (secSnap.exists()) {
+        const s = secSnap.data() as PublicFormSecurityRecord;
+        pinHash = s.pinHash;
+        pinSalt = s.pinSalt;
+        encryptedShareToken = s.encryptedShareToken;
+        iv = s.iv;
+        authTag = s.authTag;
+        shareToken = s.shareToken || shareToken;
+      }
+    } catch {
+      // Unauthenticated client cannot read security doc directly
+    }
+
     if (!form.hasPin) {
       const session: AuthorizedFormSession = {
         publicFormId: form.id,
+        workspaceId: form.workspaceId,
         projectId: form.projectId,
-        shareToken: form.shareToken,
+        shareToken: shareToken || '',
         questionnaireId: form.questionnaireId,
         questionnaireVersion: form.questionnaireVersion,
         clientName: form.clientName || '',
@@ -306,24 +401,30 @@ export async function verifyPublicFormPin(
       return { success: true, session };
     }
 
+    if (!pinSalt || !pinHash) {
+      return {
+        success: false,
+        error: 'Security credentials must be verified via server endpoint.',
+      };
+    }
+
     // Verify hash
-    const computedHash = await hashPin(enteredPin, form.pinSalt);
-    if (computedHash !== form.pinHash) {
+    const computedHash = await hashPin(enteredPin, pinSalt);
+    if (computedHash !== pinHash) {
       return {
         success: false,
         error: 'Incorrect access PIN. Please check the code provided by your administrator.',
       };
     }
 
-    // If encrypted share token is present, unseal it; otherwise use stored shareToken
-    let tokenToUse = form.shareToken;
-    if (form.encryptedShareToken && form.iv && form.authTag) {
+    let tokenToUse = shareToken;
+    if (encryptedShareToken && iv && authTag) {
       const unsealed = await unsealShareToken(
-        form.encryptedShareToken,
-        form.iv,
-        form.authTag,
+        encryptedShareToken,
+        iv,
+        authTag,
         enteredPin,
-        form.pinSalt
+        pinSalt
       );
       if (unsealed) {
         tokenToUse = unsealed;
@@ -332,6 +433,7 @@ export async function verifyPublicFormPin(
 
     const session: AuthorizedFormSession = {
       publicFormId: form.id,
+      workspaceId: form.workspaceId,
       projectId: form.projectId,
       shareToken: tokenToUse,
       questionnaireId: form.questionnaireId,

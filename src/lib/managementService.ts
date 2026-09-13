@@ -11,7 +11,7 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { Client, Project, Questionnaire, Submission, ProjectQuestionnaireAssignment } from '../types';
 import { getQuestionnaire } from './questionnaireService';
 
@@ -30,16 +30,20 @@ function sanitize<T>(data: T): T {
 // CLIENTS MANAGEMENT
 // ---------------------------------------------------------------------------
 
-export async function fetchClients(): Promise<Client[]> {
+export async function fetchClients(workspaceId?: string): Promise<Client[]> {
   try {
+    const targetWs = workspaceId || auth.currentUser?.uid;
     const colRef = collection(db, 'clients');
-    const snap = await getDocs(colRef);
+    const q = targetWs ? query(colRef, where('workspaceId', '==', targetWs)) : colRef;
+    const snap = await getDocs(q);
     const clients: Client[] = [];
 
     snap.forEach((docSnap) => {
       const data = docSnap.data();
       clients.push({
         id: docSnap.id,
+        workspaceId: data.workspaceId,
+        ownerId: data.ownerId,
         name: data.name || 'Unnamed Client',
         contactPerson: data.contactPerson || '',
         contactEmail: data.contactEmail || '',
@@ -67,6 +71,8 @@ export async function getClient(id: string): Promise<Client | null> {
       const data = snap.data();
       return {
         id: snap.id,
+        workspaceId: data.workspaceId,
+        ownerId: data.ownerId,
         name: data.name || 'Unnamed Client',
         contactPerson: data.contactPerson || '',
         contactEmail: data.contactEmail || '',
@@ -84,13 +90,17 @@ export async function getClient(id: string): Promise<Client | null> {
 }
 
 export async function createClient(
-  data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>
+  data: Omit<Client, 'id' | 'createdAt' | 'updatedAt'>,
+  workspaceId?: string
 ): Promise<Client> {
   const id = `client_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
+  const wsId = workspaceId || data.workspaceId || auth.currentUser?.uid || 'default';
   const client: Client = {
     ...data,
     id,
+    workspaceId: wsId,
+    ownerId: wsId,
     status: data.status || 'active',
     createdAt: now,
     updatedAt: now,
@@ -131,10 +141,12 @@ export async function archiveClient(id: string, archive = true): Promise<void> {
 // PROJECTS MANAGEMENT
 // ---------------------------------------------------------------------------
 
-export async function fetchProjects(clientId?: string): Promise<Project[]> {
+export async function fetchProjects(clientId?: string, workspaceId?: string): Promise<Project[]> {
   try {
+    const targetWs = workspaceId || auth.currentUser?.uid;
     const colRef = collection(db, 'projects');
-    const snap = await getDocs(colRef);
+    const q = targetWs ? query(colRef, where('workspaceId', '==', targetWs)) : colRef;
+    const snap = await getDocs(q);
     const projects: Project[] = [];
 
     snap.forEach((docSnap) => {
@@ -142,6 +154,8 @@ export async function fetchProjects(clientId?: string): Promise<Project[]> {
       if (!clientId || data.clientId === clientId) {
         projects.push({
           id: docSnap.id,
+          workspaceId: data.workspaceId,
+          ownerId: data.ownerId,
           clientId: data.clientId || '',
           name: data.name || 'Unnamed Project',
           description: data.description || '',
@@ -174,6 +188,8 @@ export async function getProject(id: string): Promise<Project | null> {
       const data = snap.data();
       return {
         id: snap.id,
+        workspaceId: data.workspaceId,
+        ownerId: data.ownerId,
         clientId: data.clientId || '',
         name: data.name || 'Unnamed Project',
         description: data.description || '',
@@ -217,6 +233,8 @@ export async function syncProjectShareTokenDoc(project: Project): Promise<void> 
         tokenRef,
         sanitize({
           projectId: project.id,
+          workspaceId: project.workspaceId,
+          ownerId: project.ownerId,
           shareToken: project.shareToken,
           clientId: project.clientId,
           clientName: clientName || '',
@@ -244,6 +262,8 @@ export async function syncProjectShareTokenDoc(project: Project): Promise<void> 
             asgnTokenRef,
             sanitize({
               projectId: project.id,
+              workspaceId: project.workspaceId,
+              ownerId: project.ownerId,
               shareToken: asgn.shareToken,
               clientId: project.clientId,
               clientName: clientName || '',
@@ -295,6 +315,8 @@ export async function getProjectByShareToken(
         return {
           project: {
             id: cleanProjId,
+            workspaceId: data.workspaceId,
+            ownerId: data.ownerId,
             clientId: data.clientId || '',
             name: data.name || 'Unnamed Project',
             description: data.description || '',
@@ -434,10 +456,12 @@ export async function removeQuestionnaireAssignmentFromProject(
 }
 
 export async function createProject(
-  data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>
+  data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>,
+  workspaceId?: string
 ): Promise<Project> {
   const id = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
+  const wsId = workspaceId || data.workspaceId || auth.currentUser?.uid || 'default';
   const qId = data.questionnaireId || data.assignedQuestionnaireId || undefined;
   const shareToken =
     data.shareToken ||
@@ -461,6 +485,8 @@ export async function createProject(
   const project: Project = {
     ...data,
     id,
+    workspaceId: wsId,
+    ownerId: wsId,
     questionnaireId: qId,
     assignedQuestionnaireId: qId,
     assignedQuestionnaires: assignments,
@@ -514,10 +540,12 @@ export async function archiveProject(id: string, archive = true): Promise<void> 
 // QUESTIONNAIRES MANAGEMENT
 // ---------------------------------------------------------------------------
 
-export async function fetchQuestionnaires(): Promise<Questionnaire[]> {
+export async function fetchQuestionnaires(workspaceId?: string): Promise<Questionnaire[]> {
   try {
+    const targetWs = workspaceId || auth.currentUser?.uid;
     const colRef = collection(db, 'questionnaires');
-    const snap = await getDocs(colRef);
+    const q = targetWs ? query(colRef, where('workspaceId', '==', targetWs)) : colRef;
+    const snap = await getDocs(q);
     const list: Questionnaire[] = [];
 
     if (!snap.empty) {
@@ -548,17 +576,21 @@ export interface SubmissionFilter {
   search?: string;
 }
 
-export async function fetchSubmissions(filter?: SubmissionFilter): Promise<Submission[]> {
+export async function fetchSubmissions(filter?: SubmissionFilter, workspaceId?: string): Promise<Submission[]> {
   try {
     // 1. Fetch from primary `/submissions`
+    const targetWs = workspaceId || auth.currentUser?.uid;
     const colRef = collection(db, 'submissions');
-    const snap = await getDocs(colRef);
+    const q = targetWs ? query(colRef, where('workspaceId', '==', targetWs)) : colRef;
+    const snap = await getDocs(q);
     const items: Submission[] = [];
 
     snap.forEach((docSnap) => {
       const d = docSnap.data();
       items.push({
         id: docSnap.id,
+        workspaceId: d.workspaceId,
+        ownerId: d.ownerId,
         questionnaireId: d.questionnaireId || d.formId || '',
         questionnaireVersion: d.questionnaireVersion || 1,
         clientId: d.clientId,
@@ -580,37 +612,41 @@ export async function fetchSubmissions(filter?: SubmissionFilter): Promise<Submi
       });
     });
 
-    // 2. Also check `/clientResponses` to merge any legacy submissions from Phase 1
-    try {
-      const legacyRef = collection(db, 'clientResponses');
-      const legacySnap = await getDocs(legacyRef);
-      legacySnap.forEach((docSnap) => {
-        const d = docSnap.data();
-        if (d.isMasterDoc) return; // skip company summary docs
-        if (!items.some((existing) => existing.id === docSnap.id)) {
-          items.push({
-            id: docSnap.id,
-            questionnaireId: d.questionnaireId || d.formId || '',
-            questionnaireVersion: d.questionnaireVersion || 1,
-            clientId: d.clientId,
-            clientCode: d.clientCode || docSnap.id,
-            projectId: d.projectId,
-            contactPerson: d.contactPerson ?? null,
-            contactPhone: d.contactPhone ?? null,
-            additionalRequirements: d.additionalRequirements || '',
-            status: d.status || 'submitted',
-            submittedAtIso: d.submittedAtIso || (d.submittedAt?.toDate ? d.submittedAt.toDate().toISOString() : new Date().toISOString()),
-            submittedAt: d.submittedAt,
-            answers: d.answers || {},
-            rawAnswers: d.rawAnswers || d.answers,
-            formId: d.formId,
-            formTitle: d.formTitle,
-            isMasterDoc: false,
-          });
-        }
-      });
-    } catch {
-      // Ignore legacy errors
+    // 2. Also check `/clientResponses` to merge any legacy submissions from Phase 1 if legacy admin or unscoped
+    if (!targetWs || targetWs === '8evjlNiaUoQneySNXZGhSeZRSoh1') {
+      try {
+        const legacyRef = collection(db, 'clientResponses');
+        const legacySnap = await getDocs(legacyRef);
+        legacySnap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d.isMasterDoc) return; // skip company summary docs
+          if (!items.some((existing) => existing.id === docSnap.id)) {
+            items.push({
+              id: docSnap.id,
+              workspaceId: d.workspaceId || '8evjlNiaUoQneySNXZGhSeZRSoh1',
+              ownerId: d.ownerId || '8evjlNiaUoQneySNXZGhSeZRSoh1',
+              questionnaireId: d.questionnaireId || d.formId || '',
+              questionnaireVersion: d.questionnaireVersion || 1,
+              clientId: d.clientId,
+              clientCode: d.clientCode || docSnap.id,
+              projectId: d.projectId,
+              contactPerson: d.contactPerson ?? null,
+              contactPhone: d.contactPhone ?? null,
+              additionalRequirements: d.additionalRequirements || '',
+              status: d.status || 'submitted',
+              submittedAtIso: d.submittedAtIso || (d.submittedAt?.toDate ? d.submittedAt.toDate().toISOString() : new Date().toISOString()),
+              submittedAt: d.submittedAt,
+              answers: d.answers || {},
+              rawAnswers: d.rawAnswers || d.answers,
+              formId: d.formId,
+              formTitle: d.formTitle,
+              isMasterDoc: false,
+            });
+          }
+        });
+      } catch {
+        // Ignore legacy errors
+      }
     }
 
     // Sort newest first
@@ -673,12 +709,12 @@ export interface DashboardMetrics {
   completedSubmissions: number;
 }
 
-export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
+export async function fetchDashboardMetrics(workspaceId?: string): Promise<DashboardMetrics> {
   const [clients, projects, questionnaires, submissions] = await Promise.all([
-    fetchClients(),
-    fetchProjects(),
-    fetchQuestionnaires(),
-    fetchSubmissions(),
+    fetchClients(workspaceId),
+    fetchProjects(undefined, workspaceId),
+    fetchQuestionnaires(workspaceId),
+    fetchSubmissions(undefined, workspaceId),
   ]);
 
   const activeProjects = projects.filter((p) => p.status === 'active').length;

@@ -86,48 +86,77 @@ service cloud.firestore {
         isValidProjectShareToken(currentData.projectId, nextData.shareToken);
     }
 
-    // 0. Admin allowlist collection
+    // 0. Workspaces Collection (1 registered user = exactly 1 workspace)
+    match /workspaces/{workspaceId} {
+      allow get: if isAuthenticated() && (request.auth.uid == workspaceId || isAdmin());
+      allow list: if false; // Enumeration protection: users cannot list other workspaces
+      allow create: if isAuthenticated() && request.auth.uid == workspaceId &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && (request.auth.uid == workspaceId || isAdmin()) &&
+        request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if false; // Workspace deletion disabled
+    }
+
+    // User Profiles Collection
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow list: if false; // Enumeration protection
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Admin Allowlist Collection
     match /admins/{adminId} {
-      // Authenticated users can read their own record to verify permissions; active admins can read any
       allow get: if isAuthenticated() && (request.auth.uid == adminId || isAdmin());
-      // Only active authorized admins can list all admins or create, update, delete admin records
       allow list: if isAdmin();
       allow create, update, delete: if isValidId(adminId) && isAdmin();
     }
 
-    // 1. Questionnaires and sub-collections (templates, sections, questions, versions)
-    // Clients can read questionnaire definitions to render the form; modifications strictly require admin
+    // 1. Questionnaires Collection
     match /questionnaires/{questionnaireId} {
-      allow get: if isValidId(questionnaireId);
-      allow list: if true;
-      allow create, update, delete: if isValidId(questionnaireId) && isAdmin();
+      // Unauthenticated clients can fetch definition to render guest forms;
+      // Authenticated users are strictly restricted to their own workspace.
+      allow get: if isValidId(questionnaireId) &&
+        (!isAuthenticated() || !('workspaceId' in resource.data) || resource.data.workspaceId == request.auth.uid || isAdmin());
+      // Listing is strictly isolated to the authenticated user's workspace
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidId(questionnaireId) &&
+        (request.resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && isValidId(questionnaireId) &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin()) &&
+        (request.resource.data.workspaceId == resource.data.workspaceId || isAdmin());
+      allow delete: if isAuthenticated() && isValidId(questionnaireId) &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
 
       match /sections/{sectionId} {
-        allow get: if isValidId(sectionId);
-        allow list: if true;
-        allow create, update, delete: if isValidId(sectionId) && isAdmin();
+        allow get, list: if isValidId(sectionId) &&
+          (!isAuthenticated() || !('workspaceId' in get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data) || get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
+        allow create, update, delete: if isValidId(sectionId) && isAuthenticated() &&
+          (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
 
         match /questions/{questionId} {
-          allow get: if isValidId(questionId);
-          allow list: if true;
-          allow create, update, delete: if isValidId(questionId) && isAdmin();
+          allow get, list: if isValidId(questionId) &&
+            (!isAuthenticated() || !('workspaceId' in get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data) || get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
+          allow create, update, delete: if isValidId(questionId) && isAuthenticated() &&
+            (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
         }
       }
 
-      // Version snapshots: immutable copies created on publish
       match /versions/{versionId} {
-        allow get: if isValidId(versionId);
-        allow list: if true;
-        allow create: if isValidId(versionId) && isAdmin();
-        allow update, delete: if false; // strictly immutable historical snapshots
+        allow get, list: if isValidId(versionId) &&
+          (!isAuthenticated() || !('workspaceId' in get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data) || get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
+        allow create: if isValidId(versionId) && isAuthenticated() &&
+          (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
+        allow update, delete: if false; // Immutable historical snapshots
       }
 
-      // Submissions sub-collection inside a questionnaire
       match /submissions/{submissionId} {
-        allow list: if isAdmin();
-        allow get: if isValidId(submissionId) && isAdmin();
+        allow get: if isValidId(submissionId) && isAuthenticated() &&
+          (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
+        allow list: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin());
         allow create: if isValidId(submissionId) && isValidSubmission(request.resource.data) && (
-          isAdmin() ||
+          (isAuthenticated() && (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin())) ||
           (
             request.resource.data.status == 'draft' &&
             request.resource.data.questionnaireId == questionnaireId &&
@@ -135,124 +164,120 @@ service cloud.firestore {
           )
         );
         allow update: if isValidId(submissionId) && (
-          isAdmin() ||
+          (isAuthenticated() && (get(/databases/$(database)/documents/questionnaires/$(questionnaireId)).data.workspaceId == request.auth.uid || isAdmin())) ||
           (
             request.resource.data.questionnaireId == questionnaireId &&
             isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
             isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
           )
         );
-        allow delete: if false; // Permanent deletion of submissions is strictly prohibited
-
-        // Admin-only AI Requirements & Completeness Analysis subcollections
-        match /requirements/{requirementId} {
-          allow get: if isValidId(requirementId) && isAdmin();
-          allow list: if isAdmin();
-          allow create, update, delete: if isValidId(requirementId) && isAdmin();
-        }
-
-        match /analysis/{analysisId} {
-          allow get: if isValidId(analysisId) && isAdmin();
-          allow list: if isAdmin();
-          allow create, update, delete: if isValidId(analysisId) && isAdmin();
-        }
+        allow delete: if false;
       }
     }
 
-    // 2. Global /submissions collection
+    // 2. Global /submissions Collection
     match /submissions/{submissionId} {
-      allow list: if isAdmin();
-      allow get: if isValidId(submissionId) && isAdmin();
+      allow get: if isValidId(submissionId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
       allow create: if isValidId(submissionId) && isValidSubmission(request.resource.data) && (
-        isAdmin() ||
+        (isAuthenticated() && (request.resource.data.workspaceId == request.auth.uid || isAdmin())) ||
         (
-          request.resource.data.status == 'draft' &&
+          (request.resource.data.status == 'draft' || request.resource.data.status == 'submitted') &&
           isValidProjectSubmission(request.resource.data)
         )
       );
       allow update: if isValidId(submissionId) && (
-        isAdmin() ||
+        (isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin())) ||
         (
           isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
           isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
         )
       );
-      allow delete: if false; // Permanent deletion of submissions is strictly prohibited
+      allow delete: if false; // Permanent deletion strictly prohibited
 
-      // Admin-only AI Requirements & Completeness Analysis subcollections
       match /requirements/{requirementId} {
-        allow get: if isValidId(requirementId) && isAdmin();
-        allow list: if isAdmin();
-        allow create, update, delete: if isValidId(requirementId) && isAdmin();
+        allow get, list, create, update, delete: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/submissions/$(submissionId)).data.workspaceId == request.auth.uid || isAdmin());
       }
 
       match /analysis/{analysisId} {
-        allow get: if isValidId(analysisId) && isAdmin();
-        allow list: if isAdmin();
-        allow create, update, delete: if isValidId(analysisId) && isAdmin();
+        allow get, list, create, update, delete: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/submissions/$(submissionId)).data.workspaceId == request.auth.uid || isAdmin());
       }
     }
 
-    // Top-level requirements collection for cross-project queries (strictly admin)
+    // Cross-project requirements queries (isolated by workspace)
     match /requirements/{requirementId} {
-      allow get: if isValidId(requirementId) && isAdmin();
-      allow list: if isAdmin();
-      allow create, update, delete: if isValidId(requirementId) && isAdmin();
+      allow get, list, create, update, delete: if isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
     }
 
-    // 3. Backward-compatible /clientResponses collection
+    // 3. Backward-compatible /clientResponses Collection
     match /clientResponses/{responseId} {
-      allow list: if isAdmin();
-      allow get: if isValidId(responseId) && isAdmin();
+      allow get: if isValidId(responseId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
       allow create: if isValidId(responseId) && isValidSubmission(request.resource.data) && (
-        isAdmin() ||
+        (isAuthenticated() && (request.resource.data.workspaceId == request.auth.uid || isAdmin())) ||
         (
-          request.resource.data.status == 'draft' &&
+          (request.resource.data.status == 'draft' || request.resource.data.status == 'submitted') &&
           isValidProjectSubmission(request.resource.data)
         )
       );
       allow update: if isValidId(responseId) && (
-        isAdmin() ||
+        (isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin())) ||
         (
           isValidClientSubmissionUpdate(resource.data, request.resource.data) &&
           isValidProjectShareToken(resource.data.projectId, request.resource.data.shareToken)
         )
       );
-      allow delete: if false; // Permanent deletion of submissions is strictly prohibited
+      allow delete: if false;
     }
 
-    // 4. Clients and Projects management collections
+    // 4. Clients Management Collection
     match /clients/{clientId} {
-      allow get: if isValidId(clientId) && isAdmin();
-      allow list: if isAdmin();
-      allow create, update, delete: if isValidId(clientId) && isAdmin();
+      allow get: if isValidId(clientId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow create: if isValidId(clientId) && isAuthenticated() &&
+        (request.resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow update: if isValidId(clientId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin()) &&
+        (request.resource.data.workspaceId == resource.data.workspaceId || isAdmin());
+      allow delete: if isValidId(clientId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
     }
 
+    // 5. Projects Management Collection
     match /projects/{projectId} {
-      // Direct access to project records is strictly admin-only.
-      // Unauthenticated clients cannot read, list, create, update, or delete /projects.
-      allow get: if isValidId(projectId) && isAdmin();
-      allow list: if isAdmin();
-      allow create, update, delete: if isValidId(projectId) && isAdmin();
+      allow get: if isValidId(projectId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow create: if isValidId(projectId) && isAuthenticated() &&
+        (request.resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow update: if isValidId(projectId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin()) &&
+        (request.resource.data.workspaceId == resource.data.workspaceId || isAdmin());
+      allow delete: if isValidId(projectId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
 
-      // Scoped Project Share-Token access:
-      // A client MUST know both the projectId and the secret shareToken to read project metadata.
-      // Listing tokens is restricted to admins (blocks token enumeration).
+      // Scoped Project Share-Token access
       match /tokens/{shareToken} {
         allow get: if isValidId(projectId) && isValidId(shareToken) &&
           resource.data.status == 'active' &&
           resource.data.shareLinkStatus == 'active' &&
           resource.data.projectId == projectId;
-        allow list: if isAdmin();
-        allow create, update, delete: if isValidId(shareToken) && isAdmin();
+        allow list: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/projects/$(projectId)).data.workspaceId == request.auth.uid || isAdmin());
+        allow create, update, delete: if isValidId(shareToken) && isAuthenticated() &&
+          (get(/databases/$(database)/documents/projects/$(projectId)).data.workspaceId == request.auth.uid || isAdmin());
 
-        // Isolated Client Drafts subcollection:
-        // Scoped exclusively to this project + authorized share token.
-        // Client cannot read other projects' drafts or other tokens' drafts.
+        // Isolated Client Drafts subcollection
         match /drafts/{draftId} {
-          allow get: if isValidId(draftId) &&
-            isValidProjectShareToken(projectId, shareToken);
-          allow list: if isAdmin();
+          allow get: if isValidId(draftId) && isValidProjectShareToken(projectId, shareToken);
+          allow list: if isAuthenticated() &&
+            (get(/databases/$(database)/documents/projects/$(projectId)).data.workspaceId == request.auth.uid || isAdmin());
           allow create: if isValidId(draftId) &&
             isValidProjectShareToken(projectId, shareToken) &&
             request.resource.data.projectId == projectId &&
@@ -264,20 +289,37 @@ service cloud.firestore {
             request.resource.data.projectId == projectId &&
             request.resource.data.shareToken == shareToken &&
             isValidClientSubmissionUpdate(resource.data, request.resource.data);
-          allow delete: if false; // Permanent deletion strictly prohibited
+          allow delete: if false;
         }
       }
     }
 
-    // 5. Public Forms collection (PIN-protected questionnaire assignments)
+    // 6. Public Forms Collection (Safe presentation metadata only)
     match /publicForms/{publicFormId} {
-      // Unauthenticated clients can get a specific public form by its public identifier
-      // to view safe public-facing metadata (title, instructions, status, hasPin)
+      // Unauthenticated public clients can get public form info
       allow get: if isValidId(publicFormId);
-      // Listing all public forms is strictly restricted to authorized admins (blocks enumeration of forms)
-      allow list: if isAdmin();
-      // Only active authorized administrators can create, modify, or delete public forms
-      allow create, update, delete: if isValidId(publicFormId) && isAdmin();
+      // Listing public forms is strictly restricted to the workspace owner or admin
+      allow list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow create: if isValidId(publicFormId) && isAuthenticated() &&
+        (request.resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow update: if isValidId(publicFormId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin()) &&
+        (request.resource.data.workspaceId == resource.data.workspaceId || isAdmin());
+      allow delete: if isValidId(publicFormId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
+    }
+
+    // 7. Public Forms Isolated Security Records (PIN hashes, salts, encrypted capability tokens)
+    match /publicFormsSecurity/{publicFormId} {
+      // Unauthenticated public clients are STRICTLY PROHIBITED from reading security records
+      allow get, list: if isAuthenticated() && (resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow create: if isValidId(publicFormId) && isAuthenticated() &&
+        (request.resource.data.workspaceId == request.auth.uid || isAdmin());
+      allow update: if isValidId(publicFormId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin()) &&
+        (request.resource.data.workspaceId == resource.data.workspaceId || isAdmin());
+      allow delete: if isValidId(publicFormId) && isAuthenticated() &&
+        (resource.data.workspaceId == request.auth.uid || isAdmin());
     }
   }
 }
