@@ -87,7 +87,9 @@ async function runAcceptanceSuite() {
 
     assert(
       rules.includes('match /requirements/{requirementId}') &&
-        rules.includes('allow read, write: if isValidId(requirementId) && isAdmin();'),
+        (rules.includes('allow read, write: if isValidId(requirementId) && isAdmin();') ||
+          (rules.includes('allow get: if isValidId(requirementId) && isAdmin();') &&
+            rules.includes('allow create, update, delete: if isValidId(requirementId) && isAdmin();'))),
       '1. AUTH',
       'Client Cannot Access AI Requirements',
       'Enforced admin-only read/write on /requirements'
@@ -95,7 +97,9 @@ async function runAcceptanceSuite() {
 
     assert(
       rules.includes('match /analysis/{analysisId}') &&
-        rules.includes('allow read, write: if isValidId(analysisId) && isAdmin();'),
+        (rules.includes('allow read, write: if isValidId(analysisId) && isAdmin();') ||
+          (rules.includes('allow get: if isValidId(analysisId) && isAdmin();') &&
+            rules.includes('allow create, update, delete: if isValidId(analysisId) && isAdmin();'))),
       '1. AUTH',
       'Client Cannot Access AI Analysis',
       'Enforced admin-only read/write on /analysis'

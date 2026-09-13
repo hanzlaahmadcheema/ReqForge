@@ -10,6 +10,10 @@ import {
   extractStructuredRequirements,
   analyzeCompletenessAndGaps,
 } from './src/server/geminiService';
+import {
+  handleGetPublicFormInfo,
+  handleVerifyPublicFormPin,
+} from './src/server/publicFormsEndpoints';
 
 async function startServer() {
   const app = express();
@@ -17,6 +21,12 @@ async function startServer() {
   const HOST = '0.0.0.0';
 
   app.use(express.json({ limit: '10mb' }));
+
+  // ---------------------------------------------------------------------------
+  // PUBLIC FORMS & PIN VERIFICATION ENDPOINTS
+  // ---------------------------------------------------------------------------
+  app.get('/api/public-forms/:publicId', handleGetPublicFormInfo);
+  app.post('/api/public-forms/verify-pin', handleVerifyPublicFormPin);
 
   // ---------------------------------------------------------------------------
   // HEALTH & STATUS ENDPOINT

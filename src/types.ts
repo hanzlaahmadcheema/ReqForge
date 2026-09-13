@@ -325,4 +325,64 @@ export interface AdminRecord {
   updatedAt?: string;
 }
 
+// ---------------------------------------------------------------------------
+// PHASE 5: PUBLIC FORMS & PIN ACCESS TYPES
+// ---------------------------------------------------------------------------
+
+export type PublicFormStatus = 'active' | 'disabled' | 'closed' | 'revoked';
+
+export interface PublicForm {
+  id: string; // Public identifier, e.g. "pub_a8f9c1"
+  title: string; // Form title, e.g. "Acme Corp Inventory Requirements"
+  description?: string; // High-level description for client
+  instructions?: string; // Completion instructions
+  contactInfo?: string; // Optional support email/phone
+  projectId: string; // Project binding
+  projectName?: string;
+  clientId: string; // Client binding
+  clientName?: string;
+  assignmentId?: string; // Assignment binding
+  questionnaireId: string; // Questionnaire binding
+  questionnaireVersion: number;
+  shareToken: string; // Capability share-token matching /projects/{projectId}/tokens/{shareToken}
+  pinHash: string; // Salted cryptographic hash of PIN
+  pinSalt: string; // Unique cryptographic salt for this form
+  encryptedShareToken?: string; // AES-256 encrypted capability token
+  iv?: string; // Initialization vector for token encryption
+  authTag?: string; // Authentication tag for AES-256-GCM
+  hasPin: boolean; // Whether PIN authentication is enforced
+  status: PublicFormStatus;
+  createdAt: string;
+  updatedAt: string;
+  submissionCount?: number;
+}
+
+// Safe metadata exposed to unauthenticated public client before PIN verification
+export interface PublicFormInfo {
+  id: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  contactInfo?: string;
+  projectName?: string;
+  clientName?: string;
+  hasPin: boolean;
+  status: PublicFormStatus;
+}
+
+// Session state after successful PIN verification
+export interface AuthorizedFormSession {
+  publicFormId: string;
+  projectId: string;
+  shareToken: string;
+  questionnaireId: string;
+  questionnaireVersion: number;
+  clientName: string;
+  projectName: string;
+  formTitle: string;
+  instructions?: string;
+  verifiedAt: string;
+}
+
+
 

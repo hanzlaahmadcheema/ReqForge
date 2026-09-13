@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Plus,
   Share2,
+  Link2,
 } from 'lucide-react';
 import {
   Client,
@@ -17,6 +18,8 @@ import {
   Questionnaire,
   Submission,
   QuestionnaireSection,
+  PublicForm,
+  PublicFormStatus,
 } from '../types';
 import {
   fetchClients,
@@ -34,11 +37,19 @@ import {
   fetchSubmissions,
 } from '../lib/managementService';
 import { updateSubmissionStatus } from '../lib/questionnaireService';
+import {
+  listPublicForms,
+  createPublicForm,
+  setPublicFormStatus,
+  updatePublicFormPin,
+  CreatePublicFormParams,
+} from '../lib/publicFormService';
 import { DashboardView } from './management/DashboardView';
 import { ClientsView } from './management/ClientsView';
 import { ProjectsView } from './management/ProjectsView';
 import { QuestionnairesView } from './management/QuestionnairesView';
 import { SubmissionsView } from './management/SubmissionsView';
+import { PublicFormsView } from './management/PublicFormsView';
 import { ShareLinkModal } from './management/ShareLinkModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
@@ -49,7 +60,7 @@ interface AdminPanelProps {
   onBackToForm: () => void;
   onLock?: () => void;
   defaultClientCode?: string;
-  defaultTab?: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions';
+  defaultTab?: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms';
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -59,7 +70,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   defaultTab = 'dashboard',
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions'
+    'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms'
   >(defaultTab);
 
   // Data state
@@ -67,6 +78,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [projects, setProjects] = useState<Project[]>([]);
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [publicForms, setPublicForms] = useState<PublicForm[]>([]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -85,18 +97,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const loadAllData = async () => {
     try {
       setError(null);
-      const [fetchedClients, fetchedProjects, fetchedQuestionnaires, fetchedSubmissions] =
-        await Promise.all([
-          fetchClients(),
-          fetchProjects(),
-          fetchQuestionnaires(),
-          fetchSubmissions(),
-        ]);
+      const [
+        fetchedClients,
+        fetchedProjects,
+        fetchedQuestionnaires,
+        fetchedSubmissions,
+        fetchedPublicForms,
+      ] = await Promise.all([
+        fetchClients(),
+        fetchProjects(),
+        fetchQuestionnaires(),
+        fetchSubmissions(),
+        listPublicForms().catch(() => [] as PublicForm[]),
+      ]);
 
       setClients(fetchedClients);
       setProjects(fetchedProjects);
       setQuestionnaires(fetchedQuestionnaires);
       setSubmissions(fetchedSubmissions);
+      setPublicForms(fetchedPublicForms);
     } catch (err: unknown) {
       console.error('Error loading management data:', err);
       const msg = err instanceof Error ? err.message : 'Failed to load management layer data';
@@ -114,6 +133,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleRefresh = () => {
     setRefreshing(true);
     loadAllData();
+  };
+
+  // Public Forms Operations
+  const handleCreatePublicForm = async (params: CreatePublicFormParams) => {
+    const res = await createPublicForm(params);
+    setPublicForms((prev) => [res.form, ...prev]);
+    return res;
+  };
+
+  const handleUpdatePublicFormStatus = async (id: string, status: PublicFormStatus) => {
+    await setPublicFormStatus(id, status);
+    setPublicForms((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, status, updatedAt: new Date().toISOString() } : f))
+    );
+  };
+
+  const handleUpdatePublicFormPin = async (id: string, newPin?: string) => {
+    const res = await updatePublicFormPin(id, newPin);
+    setPublicForms((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, updatedAt: new Date().toISOString() } : f))
+    );
+    return res;
   };
 
   // Client Operations
@@ -280,7 +321,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   interface NavTabItem {
-    id: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions';
+    id: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms';
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     count?: number;
@@ -292,6 +333,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     { id: 'projects', label: 'Projects', icon: FolderKanban, count: projects.length },
     { id: 'questionnaires', label: 'Questionnaires', icon: FileQuestion, count: questionnaires.length },
     { id: 'submissions', label: 'Submissions', icon: FileCheck2, count: submissions.length },
+    { id: 'publicForms', label: 'Public Forms', icon: Link2, count: publicForms.length },
   ];
 
   return (
@@ -477,6 +519,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 sections={sections}
                 onDeleteSubmission={handleArchiveSubmission}
                 onStatusChange={handleStatusChange}
+              />
+            )}
+
+            {activeTab === 'publicForms' && (
+              <PublicFormsView
+                publicForms={publicForms}
+                questionnaires={questionnaires}
+                projects={projects}
+                clients={clients}
+                submissions={submissions}
+                onCreateForm={handleCreatePublicForm}
+                onUpdateStatus={handleUpdatePublicFormStatus}
+                onUpdatePin={handleUpdatePublicFormPin}
+                onRefresh={loadAllData}
               />
             )}
           </>

@@ -7,9 +7,19 @@ import {
   extractStructuredRequirements,
   analyzeCompletenessAndGaps,
 } from '../src/server/geminiService';
+import {
+  handleGetPublicFormInfo,
+  handleVerifyPublicFormPin,
+} from '../src/server/publicFormsEndpoints';
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
+
+// Public Forms endpoints
+app.get('/api/public-forms/:publicId', handleGetPublicFormInfo);
+app.get('/public-forms/:publicId', handleGetPublicFormInfo);
+app.post('/api/public-forms/verify-pin', handleVerifyPublicFormPin);
+app.post('/public-forms/verify-pin', handleVerifyPublicFormPin);
 
 // Health endpoint
 const handleHealth = (_req: express.Request, res: express.Response) => {

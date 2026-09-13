@@ -18,30 +18,72 @@ import { SuccessView } from './components/SuccessView';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminPinPrompt } from './components/AdminPinPrompt';
 import { QuestionnaireForm } from './components/QuestionnaireForm';
+import { GuestHomePage } from './components/public/GuestHomePage';
+import { PublicFormPortal } from './components/public/PublicFormPortal';
 
 const STORAGE_KEY = 'client_requirements_draft_v1';
 
-const checkIsAdminPath = () => {
+export type AppRoute =
+  | { type: 'admin' }
+  | { type: 'publicForm'; publicFormId: string }
+  | { type: 'projectShare' }
+  | { type: 'home' };
+
+export const parseCurrentRoute = (): AppRoute => {
   try {
-    const path = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
     const hash = window.location.hash.toLowerCase();
-    const search = window.location.search.toLowerCase();
-    return (
-      path === '/admin' ||
-      path.endsWith('/admin') ||
+    const search = window.location.search;
+    const params = new URLSearchParams(search);
+
+    // 1. Admin route
+    if (
+      pathname === '/admin' ||
+      pathname.endsWith('/admin') ||
       hash === '#admin' ||
-      search.includes('view=admin')
-    );
+      params.get('view') === 'admin'
+    ) {
+      return { type: 'admin' };
+    }
+
+    // 2. Public Form route: /form/:publicId or ?form=:publicId
+    if (pathname.startsWith('/form/')) {
+      const publicId = pathname.slice('/form/'.length).split('/')[0];
+      if (publicId) {
+        return { type: 'publicForm', publicFormId: publicId };
+      }
+    }
+    const formParam = params.get('form');
+    if (formParam) {
+      return { type: 'publicForm', publicFormId: formParam.trim() };
+    }
+
+    // 3. Phase 2 Direct Project Share Link: ?project=...&token=...
+    const hasProject = params.get('project') || params.get('projectId');
+    if (hasProject) {
+      return { type: 'projectShare' };
+    }
+
+    // 4. Default Guest Home Page: /
+    return { type: 'home' };
   } catch {
-    return false;
+    return { type: 'home' };
   }
 };
 
 export default function App() {
-  // Admin route detection from URL (/admin)
-  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(checkIsAdminPath);
+  const [route, setRoute] = useState<AppRoute>(parseCurrentRoute);
   const [currentAdmin, setCurrentAdmin] = useState<AdminRecord | null>(null);
   const [adminAuthLoading, setAdminAuthLoading] = useState<boolean>(true);
+
+  const navigateTo = (path: string, newRoute: AppRoute) => {
+    try {
+      window.history.pushState({}, '', path);
+    } catch {
+      // Ignore
+    }
+    setRoute(newRoute);
+  };
 
   // Dynamic Questionnaire Data State (pure database-driven, null until loaded)
   const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null);
@@ -56,10 +98,10 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Sync admin route with URL changes
+  // Sync route with browser history URL changes
   useEffect(() => {
     const handleUrlChange = () => {
-      setIsAdminRoute(checkIsAdminPath());
+      setRoute(parseCurrentRoute());
     };
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
@@ -320,7 +362,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
   // Admin View (URL: /admin, protected by Google Sign-In & /admins/{uid} allowlist)
   // ---------------------------------------------------------------------------
-  if (isAdminRoute) {
+  if (route.type === 'admin') {
     if (adminAuthLoading) {
       return (
         <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
@@ -339,12 +381,7 @@ export default function App() {
             setCurrentAdmin(admin);
           }}
           onCancel={() => {
-            try {
-              window.history.pushState({}, '', '/');
-            } catch {
-              // Ignore
-            }
-            setIsAdminRoute(false);
+            navigateTo('/', { type: 'home' });
           }}
         />
       );
@@ -355,17 +392,39 @@ export default function App() {
         sections={questionnaire?.sections || []}
         defaultClientCode={clientCode !== 'Default Client' ? clientCode : undefined}
         onBackToForm={() => {
-          try {
-            window.history.pushState({}, '', '/');
-          } catch {
-            // Ignore
-          }
-          setIsAdminRoute(false);
+          navigateTo('/', { type: 'home' });
         }}
         onLock={async () => {
           await signOutAdmin();
           setCurrentAdmin(null);
         }}
+      />
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public Form Portal (URL: /form/:publicId or ?form=:publicId)
+  // ---------------------------------------------------------------------------
+  if (route.type === 'publicForm') {
+    return (
+      <PublicFormPortal
+        publicFormId={route.publicFormId}
+        onBackToHome={() => navigateTo('/', { type: 'home' })}
+        onOpenAdmin={() => navigateTo('/admin', { type: 'admin' })}
+      />
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public Guest Home Page (URL: /)
+  // ---------------------------------------------------------------------------
+  if (route.type === 'home') {
+    return (
+      <GuestHomePage
+        onAccessForm={(formId) =>
+          navigateTo(`/form/${formId}`, { type: 'publicForm', publicFormId: formId })
+        }
+        onOpenAdmin={() => navigateTo('/admin', { type: 'admin' })}
       />
     );
   }
@@ -448,12 +507,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                try {
-                  window.history.pushState({}, '', '/admin');
-                } catch {
-                  // Ignore
-                }
-                setIsAdminRoute(true);
+                navigateTo('/admin', { type: 'admin' });
               }}
               className="text-xs text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
             >
@@ -484,12 +538,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                try {
-                  window.history.pushState({}, '', '/admin');
-                } catch {
-                  // Ignore
-                }
-                setIsAdminRoute(true);
+                navigateTo('/admin', { type: 'admin' });
               }}
               className="text-xs text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
             >
@@ -532,12 +581,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                try {
-                  window.history.pushState({}, '', '/admin');
-                } catch {
-                  // Ignore
-                }
-                setIsAdminRoute(true);
+                navigateTo('/admin', { type: 'admin' });
               }}
               className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-xs"
             >
@@ -569,12 +613,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
-            try {
-              window.history.pushState({}, '', '/admin');
-            } catch {
-              // Ignore
-            }
-            setIsAdminRoute(true);
+            navigateTo('/admin', { type: 'admin' });
           }}
           className="hover:text-stone-700 underline underline-offset-4 cursor-pointer transition-colors"
         >
