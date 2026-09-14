@@ -222,58 +222,58 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
 
         {/* PROMINENT AI-AGENT WORKFLOW PROMOTION SECTION */}
         <section className="w-full max-w-5xl mx-auto px-4 py-16 border-t border-stone-200/80">
-          <div className="bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 text-white rounded-3xl p-6 sm:p-10 border border-stone-800 shadow-xl relative overflow-hidden">
-            {/* Ambient background glow */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-stone-700/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="bg-white text-stone-900 rounded-3xl p-6 sm:p-10 border border-stone-200/90 shadow-xl shadow-stone-200/50 relative overflow-hidden">
+            {/* Ambient background warmth */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-100/40 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-stone-100/60 rounded-full blur-3xl pointer-events-none" />
 
             <div className="relative z-10 max-w-3xl">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30 text-xs font-bold mb-4">
-                <Sparkles className="w-3.5 h-3.5" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80 text-xs font-semibold mb-4 shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                 <span>AI Creates the Questions • ReqForge Creates the Form</span>
               </div>
 
-              <h2 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+              <h2 className="text-2xl sm:text-4xl font-black text-stone-950 tracking-tight leading-tight">
                 Turn AI-Generated Questions Into Client-Ready Forms
               </h2>
 
-              <p className="mt-4 text-xs sm:text-sm text-stone-300 leading-relaxed max-w-2xl">
+              <p className="mt-4 text-xs sm:text-sm text-stone-600 leading-relaxed max-w-2xl">
                 Your AI agent can help you figure out what questions to ask your client.
                 Give the agent the ReqForge JSON format, ask it to create the questionnaire, then paste the generated JSON into ReqForge.
                 ReqForge automatically turns it into a structured, professional questionnaire.
               </p>
 
               {/* Visual Workflow Diagram */}
-              <div className="mt-8 p-4 sm:p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xs">
+              <div className="mt-8 p-4 sm:p-6 bg-stone-50/90 border border-stone-200/90 rounded-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 sm:gap-2 items-center text-center">
-                  <div className="p-3 rounded-xl bg-white/10 border border-white/10">
-                    <Bot className="w-5 h-5 text-amber-400 mx-auto mb-1" />
-                    <span className="text-[10px] font-mono text-stone-400 block uppercase">Step 1</span>
-                    <span className="text-xs font-bold block text-white mt-0.5">AI Agent</span>
-                    <span className="text-[10px] text-stone-400 leading-tight block mt-0.5">"Create requirements questions"</span>
+                  <div className="p-3.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs">
+                    <Bot className="w-5 h-5 text-stone-800 mx-auto mb-1.5" />
+                    <span className="text-[10px] font-mono font-bold text-stone-400 block uppercase">Step 1</span>
+                    <span className="text-xs font-bold block text-stone-900 mt-0.5">AI Agent</span>
+                    <span className="text-[10px] text-stone-500 leading-tight block mt-0.5">"Create requirements questions"</span>
                   </div>
 
-                  <div className="flex justify-center text-stone-500">
+                  <div className="flex justify-center text-stone-400">
                     <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
                   </div>
 
-                  <div className="p-3 rounded-xl bg-white/10 border border-white/10">
-                    <FileCode className="w-5 h-5 text-amber-400 mx-auto mb-1" />
-                    <span className="text-[10px] font-mono text-stone-400 block uppercase">Step 2</span>
-                    <span className="text-xs font-bold block text-white mt-0.5">ReqForge JSON</span>
-                    <span className="text-[10px] text-stone-400 leading-tight block mt-0.5">Copy generated JSON</span>
+                  <div className="p-3.5 rounded-xl bg-white border border-stone-200/90 shadow-2xs">
+                    <FileCode className="w-5 h-5 text-stone-800 mx-auto mb-1.5" />
+                    <span className="text-[10px] font-mono font-bold text-stone-400 block uppercase">Step 2</span>
+                    <span className="text-xs font-bold block text-stone-900 mt-0.5">ReqForge JSON</span>
+                    <span className="text-[10px] text-stone-500 leading-tight block mt-0.5">Copy generated JSON</span>
                   </div>
 
-                  <div className="flex justify-center text-stone-500">
+                  <div className="flex justify-center text-stone-400">
                     <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
                   </div>
 
-                  <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-400/30">
-                    <Sparkles className="w-5 h-5 text-amber-300 mx-auto mb-1" />
-                    <span className="text-[10px] font-mono text-amber-300/80 block uppercase">Step 3</span>
-                    <span className="text-xs font-bold block text-white mt-0.5">Beautiful Form</span>
-                    <span className="text-[10px] text-amber-200/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
+                  <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/90 shadow-2xs">
+                    <Sparkles className="w-5 h-5 text-amber-700 mx-auto mb-1.5" />
+                    <span className="text-[10px] font-mono font-bold text-amber-800 block uppercase">Step 3</span>
+                    <span className="text-xs font-bold block text-stone-900 mt-0.5">Beautiful Form</span>
+                    <span className="text-[10px] text-amber-900/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
                   </div>
                 </div>
               </div>
@@ -283,10 +283,10 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyPrompt}
-                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-[0.98] ${
                     copiedPrompt
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-amber-400 hover:bg-amber-300 text-stone-950'
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                      : 'bg-stone-900 hover:bg-stone-800 active:bg-stone-950 text-white shadow-stone-900/10'
                   }`}
                 >
                   {copiedPrompt ? (
@@ -296,7 +296,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                     </>
                   ) : (
                     <>
-                      <Terminal className="w-4 h-4 text-stone-900" />
+                      <Terminal className="w-4 h-4 text-stone-300" />
                       <span>Copy AI Prompt</span>
                     </>
                   )}
@@ -305,10 +305,10 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyTemplate}
-                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border active:scale-[0.98] ${
                     copiedTemplate
-                      ? 'bg-emerald-600 border-emerald-500 text-white'
-                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                      ? 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'bg-white hover:bg-stone-50 border-stone-300 text-stone-800 shadow-2xs'
                   }`}
                 >
                   {copiedTemplate ? (
@@ -318,7 +318,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                     </>
                   ) : (
                     <>
-                      <FileCode className="w-4 h-4 text-stone-300" />
+                      <FileCode className="w-4 h-4 text-stone-500" />
                       <span>Get JSON Template</span>
                     </>
                   )}
@@ -327,23 +327,23 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                 <button
                   type="button"
                   onClick={() => openGuideWithTab('workflow')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-stone-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-stone-700 hover:text-stone-950 hover:bg-stone-100 transition cursor-pointer"
                 >
                   <span>See How It Works</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-3.5 h-3.5 text-stone-500" />
                 </button>
               </div>
 
               {/* Supported Question Capabilities Grid */}
-              <div className="mt-8 pt-8 border-t border-white/10">
+              <div className="mt-8 pt-6 border-t border-stone-200/80">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">
                     Full Support for Existing Questionnaire Capabilities
                   </span>
                   <button
                     type="button"
                     onClick={() => openGuideWithTab('types')}
-                    className="text-[11px] text-amber-300 hover:underline font-semibold cursor-pointer"
+                    className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold cursor-pointer"
                   >
                     View Type Specifications &rarr;
                   </button>
@@ -362,10 +362,10 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                   ].map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-stone-200 flex items-center justify-between"
+                      className="p-2.5 rounded-xl bg-stone-50 border border-stone-200/80 text-xs text-stone-800 flex items-center justify-between hover:border-stone-300 transition-colors shadow-2xs"
                     >
-                      <span className="font-medium text-[11px]">{item.label}</span>
-                      <code className="text-[9px] font-mono px-1 py-0.5 rounded bg-white/10 text-amber-300">
+                      <span className="font-medium text-[11px] text-stone-700">{item.label}</span>
+                      <code className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-stone-200/70 text-stone-700 font-semibold">
                         {item.tag}
                       </code>
                     </div>
@@ -374,8 +374,8 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
               </div>
 
               {/* Transparency Notice */}
-              <p className="mt-4 text-[11px] text-stone-400 leading-relaxed">
-                Compatible with <strong>ChatGPT, Claude, Gemini, Copilot, Cursor</strong>, and custom AI agents.
+              <p className="mt-4 text-[11px] text-stone-500 leading-relaxed">
+                Compatible with <strong className="font-semibold text-stone-800">ChatGPT, Claude, Gemini, Copilot, Cursor</strong>, and custom AI agents.
                 ReqForge does not read your private chats or require external API keys. You copy the JSON, and ReqForge validates it before publishing.
               </p>
             </div>
