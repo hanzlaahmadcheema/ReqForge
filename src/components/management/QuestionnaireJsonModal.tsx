@@ -209,7 +209,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-stone-900 text-white rounded-xl shadow-xs">
                 {mode === 'import' ? (
-                  <Sparkles className="w-5 h-5 text-amber-300" />
+                  <Sparkles className="w-5 h-5 text-emerald-400" />
                 ) : (
                   <FileCode className="w-5 h-5 text-stone-200" />
                 )}
@@ -256,7 +256,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <Terminal className="w-3.5 h-3.5 text-amber-300" />
+                      <Terminal className="w-3.5 h-3.5 text-stone-300" />
                       <span>Copy AI Prompt</span>
                     </>
                   )}

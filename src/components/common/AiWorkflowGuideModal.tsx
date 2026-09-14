@@ -77,14 +77,14 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
         <div className="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/50">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-stone-900 text-white rounded-xl shadow-xs">
-              <Sparkles className="w-5 h-5 text-amber-300" />
+              <Sparkles className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-bold text-stone-900 leading-tight">
                   AI Agent & JSON Workflow Guide
                 </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                   Universal Format
                 </span>
               </div>
@@ -141,7 +141,7 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
               {/* Highlight Banner */}
               <div className="bg-stone-900 text-white p-5 sm:p-6 rounded-2xl relative overflow-hidden shadow-sm">
                 <div className="relative z-10 max-w-2xl">
-                  <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block mb-1">
                     ReqForge AI Philosophy
                   </span>
                   <h4 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">
@@ -188,9 +188,9 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
               </div>
 
               {/* Multi-Agent Freedom */}
-              <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 sm:p-5">
+              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 sm:p-5">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+                  <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center shrink-0 border border-stone-200">
                     <Bot className="w-4 h-4" />
                   </div>
                   <div>
@@ -211,7 +211,7 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
                   onClick={() => setActiveTab('prompt')}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                 >
-                  <Terminal className="w-4 h-4 text-amber-300" />
+                  <Terminal className="w-4 h-4 text-stone-300" />
                   <span>View Copyable AI Prompt</span>
                 </button>
                 <button
@@ -359,15 +359,15 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
               </div>
 
               {/* Conditional Questions Section */}
-              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4 space-y-2">
+              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-xl p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-700" />
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
                   <h6 className="text-xs font-bold text-stone-900">
                     Conditional Follow-Up Questions
                   </h6>
                 </div>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Questions can appear dynamically when a prior question matches a specific answer. Add the <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-amber-300">conditional</code> block referencing the target question:
+                  Questions can appear dynamically when a prior question matches a specific answer. Add the <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-emerald-300">conditional</code> block referencing the target question:
                 </p>
                 <div className="bg-stone-900 text-stone-100 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">
                   {`"conditional": {

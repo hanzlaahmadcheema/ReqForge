@@ -124,7 +124,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
               onClick={() => openGuideWithTab('workflow')}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-700 hover:text-stone-950 hover:bg-stone-100 rounded-xl transition-all cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <Sparkles className="w-3.5 h-3.5 text-stone-600" />
               <span className="hidden sm:inline">AI Workflow Guide</span>
               <span className="sm:hidden">Guide</span>
             </button>
@@ -161,7 +161,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
           {/* Form Access Card */}
           <div className="mt-10 max-w-md mx-auto bg-white p-6 sm:p-8 rounded-3xl border border-stone-200/90 shadow-xl shadow-stone-200/50 text-left">
             <div className="flex items-center gap-2.5 pb-4 border-b border-stone-100">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200/60">
+              <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200">
                 <KeyRound className="w-4 h-4" />
               </div>
               <div>
@@ -223,14 +223,14 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
         {/* PROMINENT AI-AGENT WORKFLOW PROMOTION SECTION */}
         <section className="w-full max-w-5xl mx-auto px-4 py-16 border-t border-stone-200/80">
           <div className="bg-white text-stone-900 rounded-3xl p-6 sm:p-10 border border-stone-200/90 shadow-xl shadow-stone-200/50 relative overflow-hidden">
-            {/* Ambient background warmth */}
-            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-100/40 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-stone-100/60 rounded-full blur-3xl pointer-events-none" />
+            {/* Ambient background subtle lighting */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-stone-100/50 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-stone-100/40 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="relative z-10 max-w-3xl">
+            <div className="relative z-10 w-full">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200/80 text-xs font-semibold mb-4 shadow-2xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 text-stone-800 border border-stone-300/80 text-xs font-semibold mb-4 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>AI Creates the Questions • ReqForge Creates the Form</span>
               </div>
 
@@ -269,11 +269,11 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                     <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-amber-50/90 border border-amber-200/90 shadow-2xs">
-                    <Sparkles className="w-5 h-5 text-amber-700 mx-auto mb-1.5" />
-                    <span className="text-[10px] font-mono font-bold text-amber-800 block uppercase">Step 3</span>
-                    <span className="text-xs font-bold block text-stone-900 mt-0.5">Beautiful Form</span>
-                    <span className="text-[10px] text-amber-900/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
+                  <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 shadow-2xs">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1.5" />
+                    <span className="text-[10px] font-mono font-bold text-emerald-700 block uppercase">Step 3</span>
+                    <span className="text-xs font-bold block text-stone-900 mt-0.5">Client-Ready Form</span>
+                    <span className="text-[10px] text-emerald-800/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
                   </div>
                 </div>
               </div>
@@ -343,7 +343,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                   <button
                     type="button"
                     onClick={() => openGuideWithTab('types')}
-                    className="text-[11px] text-amber-700 hover:text-amber-900 font-semibold cursor-pointer"
+                    className="text-[11px] text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
                   >
                     View Type Specifications &rarr;
                   </button>

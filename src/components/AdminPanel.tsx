@@ -403,10 +403,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200/80 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
               title="AI Agent & JSON Workflow Guide"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
               <span className="hidden sm:inline">AI Guide</span>
             </button>
 

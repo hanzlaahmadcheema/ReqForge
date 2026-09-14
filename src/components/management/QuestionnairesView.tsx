@@ -562,7 +562,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition cursor-pointer"
             title="Learn how to prompt your AI agent to build questionnaires"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <Sparkles className="w-3.5 h-3.5 text-stone-600" />
             <span className="hidden sm:inline">AI Workflow Guide</span>
           </button>
 
@@ -572,7 +572,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
             title="Paste AI-generated questionnaire JSON"
           >
-            <FileCode className="w-3.5 h-3.5 text-amber-600" />
+            <FileCode className="w-3.5 h-3.5 text-stone-600" />
             <span>Build with AI JSON</span>
           </button>
 
@@ -590,8 +590,8 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
       {questionnaires.length === 0 ? (
         /* Enhanced Empty State */
         <div className="bg-white rounded-3xl border border-stone-200 p-8 sm:p-12 text-center space-y-6 shadow-sm max-w-2xl mx-auto my-4 animate-in fade-in">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto border border-amber-200/80 shadow-2xs">
-            <Sparkles className="w-7 h-7 text-amber-600" />
+          <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-800 flex items-center justify-center mx-auto border border-stone-200 shadow-2xs">
+            <Sparkles className="w-7 h-7 text-emerald-600" />
           </div>
 
           <div className="space-y-2">
@@ -608,7 +608,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
             <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col justify-between space-y-3">
               <div>
                 <div className="flex items-center gap-1.5 text-stone-900 font-bold text-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Build with AI (Recommended)</span>
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1 leading-relaxed">
@@ -872,11 +872,11 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-xs text-stone-900">
                     <div className="w-6 h-6 rounded-lg bg-stone-900 text-white flex items-center justify-center">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                     </div>
                     <span>Build with AI (Recommended)</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                     Fastest
                   </span>
                 </div>
