@@ -29,7 +29,6 @@ questionnaire
            ├── unit (string, optional, for number type)
            ├── min (number, optional, for number type)
            ├── max (number, optional, for number type)
-           ├── step (number, optional, for number type)
            ├── min_length (number, optional, for text/textarea)
            ├── max_length (number, optional, for text/textarea)
            ├── true (string, optional, for yes_no custom label)
@@ -79,7 +78,6 @@ questionnaire
 | `unit` | `string` | No | `number` | Display unit badge (e.g., `"users"`, `"USD"`, `"$"`, `"days"`). |
 | `min` | `number` | No | `number` | Minimum numeric constraint. |
 | `max` | `number` | No | `number` | Maximum numeric constraint. |
-| `step` | `number` | No | `number` | Numeric step interval (e.g., `1`, `0.5`, `100`). |
 | `min_length` | `number` | No | `text`, `textarea` | Minimum character length constraint. |
 | `max_length` | `number` | No | `text`, `textarea` | Maximum character length constraint. |
 | `true` | `string` | No | `yes_no` | Custom label for affirmative choice (defaults to `"Yes"`). |

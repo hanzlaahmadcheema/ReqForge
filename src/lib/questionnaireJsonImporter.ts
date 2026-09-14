@@ -595,7 +595,6 @@ export function exportQuestionnaireToJsonTemplate(
 
       if (q.placeholder) {
         qJson.placeholder = q.placeholder;
-        qJson.short_answer = q.placeholder;
       }
 
       if (q.description || q.helperText) {
@@ -604,18 +603,6 @@ export function exportQuestionnaireToJsonTemplate(
 
       if ((q.type === 'single_choice' || q.type === 'multiple_choice') && q.options && q.options.length > 0) {
         qJson.options = q.options.map((opt) => opt.label);
-      }
-
-      if (q.type === 'single_choice' && q.options) {
-        q.options.forEach((opt, idx) => {
-          qJson[`option_${idx + 1}`] = opt.label;
-        });
-      }
-
-      if (q.type === 'multiple_choice' && q.options) {
-        q.options.forEach((opt, idx) => {
-          qJson[`check_${idx + 1}`] = opt.label;
-        });
       }
 
       if (q.hasOther) {
@@ -635,7 +622,6 @@ export function exportQuestionnaireToJsonTemplate(
 
       if (typeof q.min === 'number') qJson.min = q.min;
       if (typeof q.max === 'number') qJson.max = q.max;
-      if (typeof q.step === 'number') qJson.step = q.step;
       if (typeof q.minLength === 'number') qJson.min_length = q.minLength;
       if (typeof q.maxLength === 'number') qJson.max_length = q.maxLength;
 

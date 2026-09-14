@@ -332,6 +332,22 @@ assert(exportedMulti?.allow_other === true, 'Exported allow_other is true');
 assert(exportedMulti?.other_placeholder === 'Custom color...', 'Exported other_placeholder preserved');
 assert(exportedMulti?.allow_none === true, 'Exported allow_none is true');
 
+// Verify pure V2: NO legacy option_1..N, check_1..N, short_answer, or step emitted
+const exportedRawQuestion = exportedMulti as Record<string, any>;
+assert(exportedRawQuestion.option_1 === undefined, 'Export does NOT emit legacy option_1');
+assert(exportedRawQuestion.option_2 === undefined, 'Export does NOT emit legacy option_2');
+assert(exportedRawQuestion.check_1 === undefined, 'Export does NOT emit legacy check_1');
+assert(exportedRawQuestion.short_answer === undefined, 'Export does NOT emit legacy short_answer');
+assert(exportedRawQuestion.step === undefined, 'Export does NOT emit unvalidated step');
+
+// Round-trip export of legacy V1 imported questionnaire should also emit pure V2
+const exportedFromV1 = exportQuestionnaireToJsonTemplate(v1Imported);
+const exportedV1Q = exportedFromV1.questionnaire?.sections?.[0]?.questions?.[0] as Record<string, any>;
+assert(Array.isArray(exportedV1Q?.options), 'Exported V1 question emits canonical options array');
+assert(exportedV1Q.option_1 === undefined, 'Export of V1 questionnaire does NOT emit option_1');
+assert(exportedV1Q.placeholder === 'Legacy hint', 'Export of V1 questionnaire emits canonical placeholder');
+assert(exportedV1Q.short_answer === undefined, 'Export of V1 questionnaire does NOT emit short_answer');
+
 // -----------------------------------------------------------------------------
 // 9. Root Template Conformance
 // -----------------------------------------------------------------------------

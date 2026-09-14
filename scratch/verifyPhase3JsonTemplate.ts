@@ -575,8 +575,9 @@ console.log('\n--- Additional Verification: Round-Trip Export ---');
 const roundTripExported = exportQuestionnaireToJsonTemplate(importedB);
 assert(
   roundTripExported.questionnaire?.title === 'Cloud Infrastructure Audit' &&
-  roundTripExported.questionnaire?.sections?.[0]?.questions?.[0]?.option_1 === 'AWS',
-  'exportQuestionnaireToJsonTemplate correctly outputs universal JSON template format'
+  roundTripExported.questionnaire?.sections?.[0]?.questions?.[0]?.options?.[0] === 'AWS' &&
+  (roundTripExported.questionnaire?.sections?.[0]?.questions?.[0] as any)?.option_1 === undefined,
+  'exportQuestionnaireToJsonTemplate correctly outputs canonical V2 JSON template format without legacy option_1'
 );
 
 console.log(`\n========================================`);

@@ -147,7 +147,7 @@ RULES:
    - "email": Validated email address input. Supports optional "placeholder".
    - "phone": Validated telephone input. Supports optional "placeholder".
    - "url": Validated web URL (e.g. repo, staging, designs). Supports optional "placeholder".
-   - "number": Numeric value input. Supports optional "placeholder", "unit" (e.g. "$", "users", "days"), "min", "max", "step".
+   - "number": Numeric value input. Supports optional "placeholder", "unit" (e.g. "$", "users", "days"), "min", "max".
    - "date": Calendar date picker.
    - "single_choice": Radio button single-select from "options": ["A", "B", ...] (minimum 2 options). Supports optional "allow_other": true.
    - "multiple_choice": Checkbox multi-select from "options": ["A", "B", ...] (minimum 1 option). Supports optional "allow_other": true, "allow_none": true.
@@ -242,7 +242,7 @@ export const SUPPORTED_QUESTION_TYPES: QuestionTypeInfo[] = [
   {
     type: 'number',
     name: 'Number Input',
-    description: 'Validated numeric values with optional unit label, min/max bounds, and step increment.',
+    description: 'Validated numeric values with optional unit label and min/max bounds.',
     keys: '"unit": "users", "min": 1, "max": 50000, "placeholder": "0"',
     example: '{"question_id": "user_count", "question": "Expected daily active users?", "type": "number", "unit": "users", "min": 1, "placeholder": "500"}'
   },
