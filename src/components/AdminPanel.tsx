@@ -12,6 +12,7 @@ import {
   Share2,
   Link2,
   Building2,
+  Sparkles,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
 import {
@@ -56,6 +57,7 @@ import { SubmissionsView } from './management/SubmissionsView';
 import { PublicFormsView } from './management/PublicFormsView';
 import { ShareLinkModal } from './management/ShareLinkModal';
 import { SubmissionDetailModal } from './SubmissionDetailModal';
+import { AiWorkflowGuideModal } from './common/AiWorkflowGuideModal';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
 import { reconstructAnswersFromSubmission } from '../lib/firebase';
 
@@ -100,6 +102,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [shareLinkProject, setShareLinkProject] = useState<Project | null>(null);
   const [inspectSubmission, setInspectSubmission] = useState<Submission | null>(null);
   const [selectedProjectIdForNav, setSelectedProjectIdForNav] = useState<string | null>(null);
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
   // Quick action trigger states
   const [triggerNewClient, setTriggerNewClient] = useState<boolean>(false);
@@ -399,6 +402,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
+              title="AI Agent & JSON Workflow Guide"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="hidden sm:inline">AI Guide</span>
+            </button>
+
+            <button
+              type="button"
               onClick={handleRefresh}
               disabled={refreshing}
               className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 rounded-xl transition-all cursor-pointer disabled:opacity-50 min-h-[36px] active:scale-[0.98]"
@@ -593,6 +606,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           onStatusChange={handleStatusChange}
         />
       )}
+
+      {/* AI Agent & JSON Workflow Guide Modal */}
+      <AiWorkflowGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        initialTab="workflow"
+        onOpenImport={() => {
+          setIsGuideOpen(false);
+          setActiveTab('questionnaires');
+        }}
+      />
     </div>
   );
 };

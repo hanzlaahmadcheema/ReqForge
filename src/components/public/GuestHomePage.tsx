@@ -16,7 +16,20 @@ import {
   Cpu,
   HelpCircle,
   ExternalLink,
+  Copy,
+  Check,
+  Bot,
+  FileCode,
+  Terminal,
+  CheckCircle2,
+  Code2,
 } from 'lucide-react';
+import { AiWorkflowGuideModal } from '../common/AiWorkflowGuideModal';
+import {
+  REQFORGE_AI_AGENT_PROMPT,
+  REQFORGE_CANONICAL_TEMPLATE_JSON,
+  SUPPORTED_QUESTION_TYPES,
+} from '../../lib/aiWorkflowConstants';
 
 interface GuestHomePageProps {
   onAccessForm: (formIdOrCode: string) => void;
@@ -29,6 +42,14 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
 }) => {
   const [formInput, setFormInput] = useState('');
   const [inputError, setInputError] = useState<string | null>(null);
+
+  // Guide modal state
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [guideTab, setGuideTab] = useState<'workflow' | 'prompt' | 'template' | 'types' | 'about'>('workflow');
+
+  // Inline copy states
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +82,23 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
     onAccessForm(extractedId);
   };
 
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2200);
+  };
+
+  const handleCopyTemplate = () => {
+    navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
+    setCopiedTemplate(true);
+    setTimeout(() => setCopiedTemplate(false), 2200);
+  };
+
+  const openGuideWithTab = (tab: 'workflow' | 'prompt' | 'template' | 'types' | 'about') => {
+    setGuideTab(tab);
+    setIsGuideOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans flex flex-col selection:bg-stone-900 selection:text-white">
       {/* Top Navigation */}
@@ -80,7 +118,17 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => openGuideWithTab('workflow')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-700 hover:text-stone-950 hover:bg-stone-100 rounded-xl transition-all cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">AI Workflow Guide</span>
+              <span className="sm:hidden">Guide</span>
+            </button>
+
             <button
               type="button"
               onClick={onOpenAdmin}
@@ -95,7 +143,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
 
       {/* Hero Section */}
       <main className="flex-1 flex flex-col items-center">
-        <section className="w-full max-w-4xl mx-auto px-4 pt-16 sm:pt-24 pb-12 text-center">
+        <section className="w-full max-w-4xl mx-auto px-4 pt-14 sm:pt-20 pb-12 text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-100 text-stone-800 border border-stone-300/80 text-xs font-semibold mb-6 shadow-2xs animate-in fade-in slide-in-from-bottom-2 duration-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -172,6 +220,168 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
           </div>
         </section>
 
+        {/* PROMINENT AI-AGENT WORKFLOW PROMOTION SECTION */}
+        <section className="w-full max-w-5xl mx-auto px-4 py-16 border-t border-stone-200/80">
+          <div className="bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 text-white rounded-3xl p-6 sm:p-10 border border-stone-800 shadow-xl relative overflow-hidden">
+            {/* Ambient background glow */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-stone-700/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 max-w-3xl">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30 text-xs font-bold mb-4">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Creates the Questions • ReqForge Creates the Form</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+                Turn AI-Generated Questions Into Client-Ready Forms
+              </h2>
+
+              <p className="mt-4 text-xs sm:text-sm text-stone-300 leading-relaxed max-w-2xl">
+                Your AI agent can help you figure out what questions to ask your client.
+                Give the agent the ReqForge JSON format, ask it to create the questionnaire, then paste the generated JSON into ReqForge.
+                ReqForge automatically turns it into a structured, professional questionnaire.
+              </p>
+
+              {/* Visual Workflow Diagram */}
+              <div className="mt-8 p-4 sm:p-6 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 sm:gap-2 items-center text-center">
+                  <div className="p-3 rounded-xl bg-white/10 border border-white/10">
+                    <Bot className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                    <span className="text-[10px] font-mono text-stone-400 block uppercase">Step 1</span>
+                    <span className="text-xs font-bold block text-white mt-0.5">AI Agent</span>
+                    <span className="text-[10px] text-stone-400 leading-tight block mt-0.5">"Create requirements questions"</span>
+                  </div>
+
+                  <div className="flex justify-center text-stone-500">
+                    <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-white/10 border border-white/10">
+                    <FileCode className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                    <span className="text-[10px] font-mono text-stone-400 block uppercase">Step 2</span>
+                    <span className="text-xs font-bold block text-white mt-0.5">ReqForge JSON</span>
+                    <span className="text-[10px] text-stone-400 leading-tight block mt-0.5">Copy generated JSON</span>
+                  </div>
+
+                  <div className="flex justify-center text-stone-500">
+                    <ArrowRight className="w-4 h-4 rotate-90 sm:rotate-0" />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-400/15 border border-amber-400/30">
+                    <Sparkles className="w-5 h-5 text-amber-300 mx-auto mb-1" />
+                    <span className="text-[10px] font-mono text-amber-300/80 block uppercase">Step 3</span>
+                    <span className="text-xs font-bold block text-white mt-0.5">Beautiful Form</span>
+                    <span className="text-[10px] text-amber-200/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCopyPrompt}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer ${
+                    copiedPrompt
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-amber-400 hover:bg-amber-300 text-stone-950'
+                  }`}
+                >
+                  {copiedPrompt ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Copied AI Prompt!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Terminal className="w-4 h-4 text-stone-900" />
+                      <span>Copy AI Prompt</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyTemplate}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                    copiedTemplate
+                      ? 'bg-emerald-600 border-emerald-500 text-white'
+                      : 'bg-white/10 hover:bg-white/20 border-white/20 text-white'
+                  }`}
+                >
+                  {copiedTemplate ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Copied Template!</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileCode className="w-4 h-4 text-stone-300" />
+                      <span>Get JSON Template</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openGuideWithTab('workflow')}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-stone-300 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <span>See How It Works</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Supported Question Capabilities Grid */}
+              <div className="mt-8 pt-8 border-t border-white/10">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                    Full Support for Existing Questionnaire Capabilities
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => openGuideWithTab('types')}
+                    className="text-[11px] text-amber-300 hover:underline font-semibold cursor-pointer"
+                  >
+                    View Type Specifications &rarr;
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+                  {[
+                    { label: 'Short answers', tag: 'text' },
+                    { label: 'Long answers', tag: 'textarea' },
+                    { label: 'Single-choice options', tag: 'single_choice' },
+                    { label: 'Multiple-choice checks', tag: 'multiple_choice' },
+                    { label: 'Yes / No questions', tag: 'yes_no' },
+                    { label: 'Number values', tag: 'number' },
+                    { label: 'Date pickers', tag: 'date' },
+                    { label: 'Conditional follow-ups', tag: 'conditional' },
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-stone-200 flex items-center justify-between"
+                    >
+                      <span className="font-medium text-[11px]">{item.label}</span>
+                      <code className="text-[9px] font-mono px-1 py-0.5 rounded bg-white/10 text-amber-300">
+                        {item.tag}
+                      </code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Transparency Notice */}
+              <p className="mt-4 text-[11px] text-stone-400 leading-relaxed">
+                Compatible with <strong>ChatGPT, Claude, Gemini, Copilot, Cursor</strong>, and custom AI agents.
+                ReqForge does not read your private chats or require external API keys. You copy the JSON, and ReqForge validates it before publishing.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Platform Capabilities Overview */}
         <section className="w-full max-w-5xl mx-auto px-4 py-16 border-t border-stone-200/80">
           <div className="text-center max-w-xl mx-auto mb-12">
@@ -238,6 +448,13 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
           <div className="flex items-center gap-4">
             <button
               type="button"
+              onClick={() => openGuideWithTab('about')}
+              className="text-stone-600 hover:text-stone-950 font-semibold underline underline-offset-4 cursor-pointer transition-colors"
+            >
+              What is ReqForge JSON?
+            </button>
+            <button
+              type="button"
               onClick={onOpenAdmin}
               className="text-stone-600 hover:text-stone-950 font-semibold underline underline-offset-4 cursor-pointer transition-colors"
             >
@@ -246,6 +463,14 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* AI Workflow & JSON Guide Modal */}
+      <AiWorkflowGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        initialTab={guideTab}
+        onOpenImport={onOpenAdmin}
+      />
     </div>
   );
 };

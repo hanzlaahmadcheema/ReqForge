@@ -11,6 +11,7 @@ import {
   Building2,
   ExternalLink,
   FileDown,
+  Sparkles,
 } from 'lucide-react';
 import { Client, Project, Questionnaire, Submission } from '../../types';
 
@@ -156,10 +157,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="max-w-md mx-auto space-y-1">
             <h3 className="text-base font-bold text-stone-900">Welcome to your Requirements Platform</h3>
             <p className="text-xs text-stone-500 leading-relaxed">
-              The platform is completely database-driven with zero pre-populated demo records. Get started by creating your first client or questionnaire template.
+              The platform is completely database-driven. Design questions with your favorite AI agent, import JSON, or build manually.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
             <button
               type="button"
               onClick={onOpenNewClient}
@@ -171,10 +172,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('questionnaires')}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Build with AI JSON</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('questionnaires')}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-stone-300 hover:bg-stone-50 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              <span>Create questionnaire</span>
+              <Plus className="w-4 h-4 text-stone-600" />
+              <span>Create Manually</span>
             </button>
           </div>
         </div>

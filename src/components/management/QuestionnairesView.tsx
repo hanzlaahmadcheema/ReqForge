@@ -19,6 +19,13 @@ import {
   AlertTriangle,
   Send,
   FileCode,
+  Sparkles,
+  Terminal,
+  HelpCircle,
+  Bot,
+  Wand2,
+  X,
+  ArrowRight,
 } from 'lucide-react';
 import { Questionnaire, Project, Client, Section } from '../../types';
 import {
@@ -29,6 +36,11 @@ import {
 import { QuestionnaireBuilder } from './QuestionnaireBuilder';
 import { QuestionnairePreviewModal } from './QuestionnairePreviewModal';
 import { QuestionnaireJsonModal } from './QuestionnaireJsonModal';
+import { AiWorkflowGuideModal } from '../common/AiWorkflowGuideModal';
+import {
+  REQFORGE_AI_AGENT_PROMPT,
+  REQFORGE_CANONICAL_TEMPLATE_JSON,
+} from '../../lib/aiWorkflowConstants';
 
 interface QuestionnairesViewProps {
   questionnaires: Questionnaire[];
@@ -54,6 +66,10 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
   const [expandedSectionIds, setExpandedSectionIds] = useState<Record<string, boolean>>({});
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [isJsonModalOpen, setIsJsonModalOpen] = useState<boolean>(false);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState<boolean>(false);
+  const [isCreateChooserOpen, setIsCreateChooserOpen] = useState<boolean>(false);
+  const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
+  const [copiedTemplate, setCopiedTemplate] = useState<boolean>(false);
 
   // Sync when prop updates
   React.useEffect(() => {
@@ -539,20 +555,30 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsJsonModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-stone-50 text-stone-700 border border-stone-300 rounded-xl text-xs font-semibold transition shadow-2xs cursor-pointer"
-            title="Import questionnaire from universal JSON template"
+            onClick={() => setIsGuideModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+            title="Learn how to prompt your AI agent to build questionnaires"
           >
-            <FileCode className="w-3.5 h-3.5 text-stone-500" />
-            <span>Import JSON</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">AI Workflow Guide</span>
           </button>
 
           <button
             type="button"
-            onClick={handleCreateNew}
+            onClick={() => setIsJsonModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+            title="Paste AI-generated questionnaire JSON"
+          >
+            <FileCode className="w-3.5 h-3.5 text-amber-600" />
+            <span>Build with AI JSON</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCreateChooserOpen(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -561,163 +587,369 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search questionnaires..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs text-stone-900 placeholder:text-stone-400 rounded-lg border border-stone-200 focus:outline-none focus:border-stone-900 bg-stone-50/50 focus:bg-white"
-          />
-        </div>
+      {questionnaires.length === 0 ? (
+        /* Enhanced Empty State */
+        <div className="bg-white rounded-3xl border border-stone-200 p-8 sm:p-12 text-center space-y-6 shadow-sm max-w-2xl mx-auto my-4 animate-in fade-in">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center mx-auto border border-amber-200/80 shadow-2xs">
+            <Sparkles className="w-7 h-7 text-amber-600" />
+          </div>
 
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-          {(['all', 'published', 'draft', 'archived'] as const).map((status) => (
+          <div className="space-y-2">
+            <h3 className="text-lg font-black text-stone-900 tracking-tight">
+              No questionnaires yet
+            </h3>
+            <p className="text-xs sm:text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
+              Create one manually, or let your AI agent design the questions for you.
+              Paste the generated JSON and ReqForge turns it into a client-ready form.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-md mx-auto text-left">
+            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-stone-900 font-bold text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Build with AI (Recommended)</span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-1 leading-relaxed">
+                  Ask ChatGPT, Claude, or Gemini to create the questionnaire JSON, then paste it here.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsJsonModalOpen(true)}
+                className="w-full py-2 px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <span>Build with AI JSON</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col justify-between space-y-3">
+              <div>
+                <div className="flex items-center gap-1.5 text-stone-900 font-bold text-xs">
+                  <Plus className="w-3.5 h-3.5 text-stone-600" />
+                  <span>Build Manually</span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-1 leading-relaxed">
+                  Design sections and questions from scratch using the step-by-step interactive form builder.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCreateNew}
+                className="w-full py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Create Manually</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-4 text-xs text-stone-500">
             <button
-              key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition whitespace-nowrap cursor-pointer ${
-                statusFilter === status
-                  ? 'bg-stone-900 text-white shadow-2xs'
-                  : 'text-stone-600 hover:bg-stone-100'
-              }`}
+              onClick={() => {
+                navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
+                setCopiedPrompt(true);
+                setTimeout(() => setCopiedPrompt(false), 2200);
+              }}
+              className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
             >
-              {status}
+              {copiedPrompt ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Terminal className="w-3.5 h-3.5" />}
+              <span>{copiedPrompt ? 'Copied AI Prompt!' : 'Copy AI Prompt'}</span>
             </button>
-          ))}
+
+            <span>&bull;</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                setCopiedTemplate(true);
+                setTimeout(() => setCopiedTemplate(false), 2200);
+              }}
+              className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
+            >
+              {copiedTemplate ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedTemplate ? 'Copied Template!' : 'Copy JSON Template'}</span>
+            </button>
+
+            <span>&bull;</span>
+
+            <button
+              type="button"
+              onClick={() => setIsGuideModalOpen(true)}
+              className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>AI Workflow Guide</span>
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search questionnaires..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs text-stone-900 placeholder:text-stone-400 rounded-lg border border-stone-200 focus:outline-none focus:border-stone-900 bg-stone-50/50 focus:bg-white"
+              />
+            </div>
 
-      {/* Questionnaires Table */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-2xs">
-        <table className="w-full text-left text-xs text-stone-600">
-          <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
-            <tr>
-              <th className="py-3 px-4">Template Title</th>
-              <th className="py-3 px-4">Version</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Sections</th>
-              <th className="py-3 px-4">Assigned Projects</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-stone-100">
-            {filteredQuestionnaires.map((q) => {
-              const assignedCount = projects.filter(
-                (p) => p.questionnaireId === q.id || p.assignedQuestionnaireId === q.id
-              ).length;
-              const totalQ = (q.sections || []).reduce(
-                (acc, s) => acc + (s.questions?.length || 0),
-                0
-              );
-
-              return (
-                <tr
-                  key={q.id}
-                  className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
-                  onClick={() => setSelectedQuestionnaire(q)}
+            <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+              {(['all', 'published', 'draft', 'archived'] as const).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition whitespace-nowrap cursor-pointer ${
+                    statusFilter === status
+                      ? 'bg-stone-900 text-white shadow-2xs'
+                      : 'text-stone-600 hover:bg-stone-100'
+                  }`}
                 >
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                        <FileQuestion className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-stone-900 block group-hover:text-black">
-                          {q.title}
-                        </span>
-                        <span className="text-[11px] text-stone-400 line-clamp-1 max-w-[280px]">
-                          {q.description || 'No description provided'}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
 
-                  <td className="py-3.5 px-4 font-mono font-semibold text-stone-800">
-                    v{q.version}
-                  </td>
-
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                        q.status === 'published'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : q.status === 'draft'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-stone-200 text-stone-700'
-                      }`}
-                    >
-                      {q.status}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 px-4 font-semibold text-stone-800">
-                    {q.sections?.length || 0} sections ({totalQ} Qs)
-                  </td>
-
-                  <td className="py-3.5 px-4 font-semibold text-stone-800">
-                    {assignedCount} projects
-                  </td>
-
-                  <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewQuestionnaire(q)}
-                        className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer"
-                        title="Preview Questionnaire"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicate(q)}
-                        disabled={actionInProgress === q.id}
-                        className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
-                        title="Duplicate into Draft"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleArchive(q)}
-                        disabled={actionInProgress === q.id}
-                        className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
-                        title={q.status === 'archived' ? 'Unarchive (Draft)' : 'Archive'}
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleEditInBuilder(q)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold transition cursor-pointer ml-1"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>Builder</span>
-                      </button>
-                    </div>
-                  </td>
+          {/* Questionnaires Table */}
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-2xs">
+            <table className="w-full text-left text-xs text-stone-600">
+              <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 font-semibold uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Template Title</th>
+                  <th className="py-3 px-4">Version</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Sections</th>
+                  <th className="py-3 px-4">Assigned Projects</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
-              );
-            })}
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredQuestionnaires.map((q) => {
+                  const assignedCount = projects.filter(
+                    (p) => p.questionnaireId === q.id || p.assignedQuestionnaireId === q.id
+                  ).length;
+                  const totalQ = (q.sections || []).reduce(
+                    (acc, s) => acc + (s.questions?.length || 0),
+                    0
+                  );
 
-            {filteredQuestionnaires.length === 0 && (
-              <tr>
-                <td colSpan={6} className="text-center py-10 text-stone-400 text-xs">
-                  No questionnaires found matching your criteria.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                  return (
+                    <tr
+                      key={q.id}
+                      className="hover:bg-stone-50/70 transition-colors group cursor-pointer"
+                      onClick={() => setSelectedQuestionnaire(q)}
+                    >
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                            <FileQuestion className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-stone-900 block group-hover:text-black">
+                              {q.title}
+                            </span>
+                            <span className="text-[11px] text-stone-400 line-clamp-1 max-w-[280px]">
+                              {q.description || 'No description provided'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono font-semibold text-stone-800">
+                        v{q.version}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                            q.status === 'published'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : q.status === 'draft'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-stone-200 text-stone-700'
+                          }`}
+                        >
+                          {q.status}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-semibold text-stone-800">
+                        {q.sections?.length || 0} sections ({totalQ} Qs)
+                      </td>
+
+                      <td className="py-3.5 px-4 font-semibold text-stone-800">
+                        {assignedCount} projects
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewQuestionnaire(q)}
+                            className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer"
+                            title="Preview Questionnaire"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicate(q)}
+                            disabled={actionInProgress === q.id}
+                            className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
+                            title="Duplicate into Draft"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleArchive(q)}
+                            disabled={actionInProgress === q.id}
+                            className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer disabled:opacity-50"
+                            title={q.status === 'archived' ? 'Unarchive (Draft)' : 'Archive'}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditInBuilder(q)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold transition cursor-pointer ml-1"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Builder</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filteredQuestionnaires.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-10 text-stone-400 text-xs">
+                      No questionnaires found matching your criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Choice Modal: Build with AI vs Build Manually */}
+      {isCreateChooserOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-stone-200 shadow-2xl overflow-hidden p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-stone-900">Create Questionnaire</h3>
+                <p className="text-xs text-stone-500">Choose your questionnaire creation method</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateChooserOpen(false)}
+                className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: Build with AI */}
+              <div className="p-4 rounded-2xl border-2 border-stone-900 bg-stone-50/50 hover:bg-stone-50 transition space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-xs text-stone-900">
+                    <div className="w-6 h-6 rounded-lg bg-stone-900 text-white flex items-center justify-center">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    </div>
+                    <span>Build with AI (Recommended)</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                    Fastest
+                  </span>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  Ask ChatGPT, Claude, Gemini, or Copilot to generate your questionnaire, then paste the JSON here.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateChooserOpen(false);
+                      setIsJsonModalOpen(true);
+                    }}
+                    className="flex-1 py-2 px-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>Paste JSON</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
+                      setCopiedPrompt(true);
+                      setTimeout(() => setCopiedPrompt(false), 2200);
+                    }}
+                    className="py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                  >
+                    {copiedPrompt ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Terminal className="w-3.5 h-3.5 text-stone-500" />}
+                    <span>{copiedPrompt ? 'Copied Prompt!' : 'Copy Prompt'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                      setCopiedTemplate(true);
+                      setTimeout(() => setCopiedTemplate(false), 2200);
+                    }}
+                    className="py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
+                  >
+                    {copiedTemplate ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
+                    <span>{copiedTemplate ? 'Copied Template!' : 'Copy Template'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 2: Build Manually */}
+              <div className="p-4 rounded-2xl border border-stone-200 bg-white hover:border-stone-300 transition space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs text-stone-900">
+                  <div className="w-6 h-6 rounded-lg bg-stone-100 text-stone-800 flex items-center justify-center">
+                    <Plus className="w-3.5 h-3.5" />
+                  </div>
+                  <span>Build Manually</span>
+                </div>
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  Design sections, select question types, and write questions manually using the visual builder.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateChooserOpen(false);
+                      handleCreateNew();
+                    }}
+                    className="w-full py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Open Manual Builder</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Interactive Preview Modal */}
       {previewQuestionnaire && (
@@ -739,6 +971,14 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           }}
         />
       )}
+
+      {/* AI Workflow Guide Modal */}
+      <AiWorkflowGuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
+        initialTab="workflow"
+        onOpenImport={() => setIsJsonModalOpen(true)}
+      />
     </div>
   );
 };

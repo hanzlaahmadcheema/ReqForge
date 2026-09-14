@@ -492,10 +492,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               type="button"
               onClick={() => setJsonModalMode('import')}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
-              title="Import from universal JSON template"
+              title="Build questionnaire using AI-generated JSON"
             >
-              <FileCode className="w-3.5 h-3.5 text-stone-600" />
-              <span>Import JSON</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span>Build with AI (JSON)</span>
             </button>
 
             <button
