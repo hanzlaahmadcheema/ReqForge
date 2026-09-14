@@ -30,6 +30,7 @@ import {
   REQFORGE_CANONICAL_TEMPLATE_JSON,
   SUPPORTED_QUESTION_TYPES,
 } from '../../lib/aiWorkflowConstants';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface GuestHomePageProps {
   onAccessForm: (formIdOrCode: string) => void;
@@ -82,16 +83,20 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
     onAccessForm(extractedId);
   };
 
-  const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 2200);
+  const handleCopyPrompt = async () => {
+    const success = await copyToClipboard(REQFORGE_AI_AGENT_PROMPT);
+    if (success) {
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2200);
+    }
   };
 
-  const handleCopyTemplate = () => {
-    navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
-    setCopiedTemplate(true);
-    setTimeout(() => setCopiedTemplate(false), 2200);
+  const handleCopyTemplate = async () => {
+    const success = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+    if (success) {
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 2200);
+    }
   };
 
   const openGuideWithTab = (tab: 'workflow' | 'prompt' | 'template' | 'types' | 'about') => {

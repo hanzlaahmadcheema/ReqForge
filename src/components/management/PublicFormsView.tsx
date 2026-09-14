@@ -39,6 +39,7 @@ import {
 } from '../../types';
 import { CreatePublicFormParams } from '../../lib/publicFormService';
 import { generateRandomPin } from '../../lib/cryptoUtils';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface PublicFormsViewProps {
   publicForms: PublicForm[];
@@ -110,17 +111,8 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
 
   const handleCopyLink = async (formId: string) => {
     const url = `${window.location.origin}/form/${formId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedId(formId);
-      setTimeout(() => setCopiedId(null), 2500);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = url;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
+    const ok = await copyToClipboard(url);
+    if (ok) {
       setCopiedId(formId);
       setTimeout(() => setCopiedId(null), 2500);
     }
@@ -724,12 +716,10 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(oneTimePinInfo.publicUrl);
+                      const ok = await copyToClipboard(oneTimePinInfo.publicUrl);
+                      if (ok) {
                         setLinkCopied(true);
                         setTimeout(() => setLinkCopied(false), 2000);
-                      } catch {
-                        // ignore
                       }
                     }}
                     className="px-2.5 py-1.5 bg-stone-900 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0"
@@ -751,12 +741,10 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(oneTimePinInfo.plaintextPin);
+                      const ok = await copyToClipboard(oneTimePinInfo.plaintextPin);
+                      if (ok) {
                         setPinCopied(true);
                         setTimeout(() => setPinCopied(false), 2000);
-                      } catch {
-                        // ignore
                       }
                     }}
                     className="px-3 py-2 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0"

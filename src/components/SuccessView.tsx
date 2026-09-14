@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle, Copy, Check, FileDown, RotateCcw, Database, FileText } from 'lucide-react';
 import { QuestionnaireAnswers, QuestionnaireSection } from '../types';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
+import { copyToClipboard } from '../lib/clipboardUtils';
 
 interface SuccessViewProps {
   docId: string;
@@ -46,10 +47,12 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     }
   };
 
-  const handleCopyDocId = () => {
-    navigator.clipboard.writeText(docId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyDocId = async () => {
+    const success = await copyToClipboard(docId);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleDownloadReceipt = () => {

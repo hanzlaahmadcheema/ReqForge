@@ -18,6 +18,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Project, Client, Questionnaire, Submission } from '../../types';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface ProjectsViewProps {
   projects: Project[];
@@ -402,10 +403,12 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(asgnUrl);
-                            setCopiedAsgnId(asgn.id);
-                            setTimeout(() => setCopiedAsgnId(null), 2000);
+                          onClick={async () => {
+                            const ok = await copyToClipboard(asgnUrl);
+                            if (ok) {
+                              setCopiedAsgnId(asgn.id);
+                              setTimeout(() => setCopiedAsgnId(null), 2000);
+                            }
                           }}
                           className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-stone-300 hover:bg-stone-100 text-stone-700 cursor-pointer flex items-center gap-1"
                         >

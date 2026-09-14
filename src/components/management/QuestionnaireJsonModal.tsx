@@ -30,6 +30,7 @@ import {
   REQFORGE_AI_AGENT_PROMPT,
   REQFORGE_CANONICAL_TEMPLATE_JSON,
 } from '../../lib/aiWorkflowConstants';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 import { AiWorkflowGuideModal } from '../common/AiWorkflowGuideModal';
 import { QuestionnairePreviewModal } from './QuestionnairePreviewModal';
 
@@ -155,22 +156,28 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
     onClose();
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(jsonText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    const success = await copyToClipboard(jsonText);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
-  const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 2200);
+  const handleCopyPrompt = async () => {
+    const success = await copyToClipboard(REQFORGE_AI_AGENT_PROMPT);
+    if (success) {
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2200);
+    }
   };
 
-  const handleCopyTemplate = () => {
-    navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
-    setCopiedTemplate(true);
-    setTimeout(() => setCopiedTemplate(false), 2200);
+  const handleCopyTemplate = async () => {
+    const success = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+    if (success) {
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 2200);
+    }
   };
 
   const handleDownload = () => {

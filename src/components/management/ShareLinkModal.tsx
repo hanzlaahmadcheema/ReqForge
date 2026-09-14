@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Project, Client } from '../../types';
 import { updateProjectShareLink, updateProject } from '../../lib/managementService';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface ShareLinkModalProps {
   project: Project;
@@ -54,17 +55,8 @@ export const ShareLinkModal: React.FC<ShareLinkModalProps> = ({
   const shareUrl = `${origin}/?project=${project.id}&token=${token}`;
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      const textArea = document.createElement('textarea');
-      textArea.value = shareUrl;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
+    const ok = await copyToClipboard(shareUrl);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }

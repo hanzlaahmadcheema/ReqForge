@@ -41,6 +41,7 @@ import {
   REQFORGE_AI_AGENT_PROMPT,
   REQFORGE_CANONICAL_TEMPLATE_JSON,
 } from '../../lib/aiWorkflowConstants';
+import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface QuestionnairesViewProps {
   questionnaires: Questionnaire[];
@@ -648,10 +649,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           <div className="pt-2 flex flex-wrap items-center justify-center gap-4 text-xs text-stone-500">
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
-                setCopiedPrompt(true);
-                setTimeout(() => setCopiedPrompt(false), 2200);
+              onClick={async () => {
+                const ok = await copyToClipboard(REQFORGE_AI_AGENT_PROMPT);
+                if (ok) {
+                  setCopiedPrompt(true);
+                  setTimeout(() => setCopiedPrompt(false), 2200);
+                }
               }}
               className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
             >
@@ -663,10 +666,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
-                setCopiedTemplate(true);
-                setTimeout(() => setCopiedTemplate(false), 2200);
+              onClick={async () => {
+                const ok = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                if (ok) {
+                  setCopiedTemplate(true);
+                  setTimeout(() => setCopiedTemplate(false), 2200);
+                }
               }}
               className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
             >
@@ -897,10 +902,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(REQFORGE_AI_AGENT_PROMPT);
-                      setCopiedPrompt(true);
-                      setTimeout(() => setCopiedPrompt(false), 2200);
+                    onClick={async () => {
+                      const ok = await copyToClipboard(REQFORGE_AI_AGENT_PROMPT);
+                      if (ok) {
+                        setCopiedPrompt(true);
+                        setTimeout(() => setCopiedPrompt(false), 2200);
+                      }
                     }}
                     className="py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
                   >
@@ -909,10 +916,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(REQFORGE_CANONICAL_TEMPLATE_JSON);
-                      setCopiedTemplate(true);
-                      setTimeout(() => setCopiedTemplate(false), 2200);
+                    onClick={async () => {
+                      const ok = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                      if (ok) {
+                        setCopiedTemplate(true);
+                        setTimeout(() => setCopiedTemplate(false), 2200);
+                      }
                     }}
                     className="py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
                   >
