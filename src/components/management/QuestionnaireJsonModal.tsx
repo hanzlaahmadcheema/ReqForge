@@ -223,11 +223,11 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-stone-900 leading-tight">
-                  {mode === 'import' ? 'Build with AI-Generated JSON' : 'Export Questionnaire JSON'}
+                  {mode === 'import' ? 'Build with AI-Generated JSON (V2)' : 'Export Questionnaire JSON'}
                 </h3>
                 <p className="text-xs text-stone-500 mt-0.5 max-w-xl">
                   {mode === 'import'
-                    ? 'Ask your AI agent to create a client questionnaire using the ReqForge format. Paste the generated JSON here and ReqForge will automatically build the form.'
+                    ? 'Ask your AI agent to create a client questionnaire using the ReqForge V2 format. Paste the generated JSON here and ReqForge will automatically build the form.'
                     : 'Universal JSON template format ready to share, version, or edit.'}
                 </p>
               </div>
@@ -385,7 +385,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
                 onChange={(e) => handleTextChange(e.target.value)}
                 placeholder={
                   mode === 'import'
-                    ? 'Paste AI-generated questionnaire JSON here (from ChatGPT, Claude, Gemini, etc.)...'
+                    ? 'Paste AI-generated questionnaire JSON here (canonical V2 format or legacy V1)...'
                     : 'Questionnaire JSON...'
                 }
                 rows={16}
@@ -431,7 +431,7 @@ export const QuestionnaireJsonModal: React.FC<QuestionnaireJsonModalProps> = ({
           {/* Footer Actions */}
           <div className="px-6 py-3.5 pb-safe sm:pb-3.5 border-t border-stone-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-50/50">
             <span className="text-[11px] text-stone-500 text-center sm:text-left">
-              Compliant with <span className="font-mono font-semibold">docs/questionnaire-json-format.md</span>
+              Compliant with <span className="font-mono font-semibold">docs/questionnaire-json-format.md (V2)</span>
             </span>
 
             <div className="flex flex-wrap items-center gap-2">

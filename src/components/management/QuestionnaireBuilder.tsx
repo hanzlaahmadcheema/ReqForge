@@ -974,6 +974,9 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                           >
                             <option value="text">Text (Short input)</option>
                             <option value="textarea">Textarea (Long response)</option>
+                            <option value="email">Email Address</option>
+                            <option value="phone">Phone Number</option>
+                            <option value="url">Web URL</option>
                             <option value="single_choice">Single Choice (Radio)</option>
                             <option value="multiple_choice">Multiple Choice (Checkboxes)</option>
                             <option value="yes_no">Yes / No</option>

@@ -34,6 +34,19 @@ export interface UserQuestionJson {
   placeholder?: string;
   description?: string;
   helper_text?: string;
+  options?: (string | { label?: string; value?: string; [key: string]: unknown })[];
+  allow_other?: boolean;
+  has_other?: boolean;
+  hasOther?: boolean;
+  other_placeholder?: string;
+  otherPlaceholder?: string;
+  allow_none?: boolean;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  min_length?: number;
+  max_length?: number;
   true?: string;
   false?: string;
   conditional?: UserConditionalJson;
@@ -70,10 +83,13 @@ export interface ValidationResult {
   questionnaire?: Questionnaire;
 }
 
-// Supported standard question types
+// Supported standard question types (V2 includes email, phone, url)
 const SUPPORTED_STANDARD_TYPES: Set<StandardQuestionType> = new Set([
   'text',
   'textarea',
+  'email',
+  'phone',
+  'url',
   'single_choice',
   'multiple_choice',
   'yes_no',
@@ -81,12 +97,13 @@ const SUPPORTED_STANDARD_TYPES: Set<StandardQuestionType> = new Set([
   'date',
 ]);
 
-// Legacy type mappings
-const LEGACY_TYPE_MAP: Record<LegacyQuestionType, StandardQuestionType> = {
+// Legacy and helper type mappings
+const LEGACY_TYPE_MAP: Record<string, StandardQuestionType> = {
   short_text: 'text',
   long_text: 'textarea',
   radio: 'single_choice',
   checkbox: 'multiple_choice',
+  tel: 'phone',
 };
 
 /**
@@ -110,7 +127,7 @@ export function normalizeQuestionType(
 
   if (clean in LEGACY_TYPE_MAP) {
     return {
-      type: LEGACY_TYPE_MAP[clean as LegacyQuestionType],
+      type: LEGACY_TYPE_MAP[clean],
       isLegacy: true,
     };
   }
@@ -142,11 +159,11 @@ export function extractOptions(
   const options: QuestionOption[] = [];
   const usedValues = new Set<string>();
 
-  const addOption = (label: string) => {
+  const addOption = (label: string, customValue?: string) => {
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
 
-    let baseValue = slugify(trimmedLabel);
+    let baseValue = (customValue && customValue.trim()) ? slugify(customValue.trim()) : slugify(trimmedLabel);
     let uniqueValue = baseValue;
     let counter = 1;
     while (usedValues.has(uniqueValue)) {
@@ -160,8 +177,23 @@ export function extractOptions(
     });
   };
 
-  // 1. Single Choice: Look for option_1 ... option_N
-  if (type === 'single_choice') {
+  // 1. Canonical V2 Format: Array of options (strings or objects with label/value)
+  if ((type === 'single_choice' || type === 'multiple_choice') && Array.isArray(questionJson.options)) {
+    for (const opt of questionJson.options) {
+      if (typeof opt === 'string' && opt.trim().length > 0) {
+        addOption(opt);
+      } else if (opt && typeof opt === 'object') {
+        const lbl = String((opt as any).label || (opt as any).text || '').trim();
+        const val = typeof (opt as any).value === 'string' ? String((opt as any).value).trim() : undefined;
+        if (lbl) {
+          addOption(lbl, val);
+        }
+      }
+    }
+  }
+
+  // 2. V1 Backward Compatibility: Single Choice option_1 ... option_N
+  if (type === 'single_choice' && options.length === 0) {
     const numberedKeys = Object.keys(questionJson)
       .filter((k) => /^option_(\d+)$/i.test(k))
       .sort((a, b) => {
@@ -178,8 +210,8 @@ export function extractOptions(
     }
   }
 
-  // 2. Multiple Choice: Look for check_1 ... check_N (and fallback to option_1..N if check_* not used)
-  if (type === 'multiple_choice') {
+  // 3. V1 Backward Compatibility: Multiple Choice check_1 ... check_N (with option_1..N fallback)
+  if (type === 'multiple_choice' && options.length === 0) {
     const checkKeys = Object.keys(questionJson)
       .filter((k) => /^check_(\d+)$/i.test(k))
       .sort((a, b) => {
@@ -213,7 +245,7 @@ export function extractOptions(
     }
   }
 
-  // 3. Yes/No binary options
+  // 4. Yes/No binary options (supports custom true/false labels or defaults to Yes/No)
   if (type === 'yes_no') {
     const trueLabel =
       typeof questionJson.true === 'string' && questionJson.true.trim().length > 0
@@ -227,21 +259,6 @@ export function extractOptions(
     options.push({ value: 'yes', label: trueLabel });
     options.push({ value: 'no', label: falseLabel });
     return options;
-  }
-
-  // 4. Fallback: If user provided a raw options array
-  if (options.length === 0 && Array.isArray(questionJson.options)) {
-    for (const opt of questionJson.options) {
-      if (typeof opt === 'string' && opt.trim()) {
-        addOption(opt);
-      } else if (opt && typeof opt === 'object' && 'label' in opt) {
-        const lbl = String((opt as any).label || '').trim();
-        const val = String((opt as any).value || '').trim() || slugify(lbl);
-        if (lbl) {
-          options.push({ value: val, label: lbl });
-        }
-      }
-    }
   }
 
   return options;
@@ -379,7 +396,7 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
           errors.push(`${qLoc} ("${qId || `Q${qNum}`}"): Type "rating" is not supported.`);
         } else {
           errors.push(
-            `${qLoc} ("${qId || `Q${qNum}`}"): Type "${rawType || 'undefined'}" is not supported. Valid types: text, textarea, single_choice, multiple_choice, yes_no, number, date.`
+            `${qLoc} ("${qId || `Q${qNum}`}"): Type "${rawType || 'undefined'}" is not supported. Valid types: text, textarea, email, phone, url, single_choice, multiple_choice, yes_no, number, date.`
           );
         }
         return;
@@ -391,22 +408,22 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
       const options = extractOptions(q, qType);
       if (qType === 'single_choice' && options.length < 2) {
         errors.push(
-          `${qLoc} ("${qId || `Q${qNum}`}"): Single choice questions require at least 2 populated options (e.g. option_1, option_2).`
+          `${qLoc} ("${qId || `Q${qNum}`}"): Single choice questions require at least 2 options (e.g. "options": ["Option 1", "Option 2"]).`
         );
       }
 
       if (qType === 'multiple_choice' && options.length < 1) {
         errors.push(
-          `${qLoc} ("${qId || `Q${qNum}`}"): Multiple choice questions require at least 1 populated option (e.g. check_1).`
+          `${qLoc} ("${qId || `Q${qNum}`}"): Multiple choice questions require at least 1 option (e.g. "options": ["Option 1", "Option 2"]).`
         );
       }
 
-      // Short answer key handling
+      // Placeholder handling (canonical V2 "placeholder", legacy "short_answer")
       let placeholder: string | undefined = undefined;
-      if (typeof q.short_answer === 'string' && q.short_answer.trim().length > 0) {
-        placeholder = q.short_answer.trim();
-      } else if (typeof q.placeholder === 'string' && q.placeholder.trim().length > 0) {
+      if (typeof q.placeholder === 'string' && q.placeholder.trim().length > 0) {
         placeholder = q.placeholder.trim();
+      } else if (typeof q.short_answer === 'string' && q.short_answer.trim().length > 0) {
+        placeholder = q.short_answer.trim();
       }
 
       // Helper / Description
@@ -415,6 +432,32 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
           ? q.description.trim()
           : typeof q.helper_text === 'string' && q.helper_text.trim().length > 0
           ? q.helper_text.trim()
+          : undefined;
+
+      // V2 Metadata & Constraints
+      const hasOther = Boolean(q.allow_other || q.has_other || q.hasOther);
+      const otherPlaceholder =
+        typeof q.other_placeholder === 'string' && q.other_placeholder.trim().length > 0
+          ? q.other_placeholder.trim()
+          : typeof q.otherPlaceholder === 'string' && q.otherPlaceholder.trim().length > 0
+          ? q.otherPlaceholder.trim()
+          : undefined;
+      const allowNone = Boolean(q.allow_none || q.allowNone);
+      const unit = typeof q.unit === 'string' && q.unit.trim().length > 0 ? q.unit.trim() : undefined;
+      const min = typeof q.min === 'number' ? q.min : undefined;
+      const max = typeof q.max === 'number' ? q.max : undefined;
+      const step = typeof q.step === 'number' ? q.step : undefined;
+      const minLength =
+        typeof q.min_length === 'number'
+          ? q.min_length
+          : typeof q.minLength === 'number'
+          ? q.minLength
+          : undefined;
+      const maxLength =
+        typeof q.max_length === 'number'
+          ? q.max_length
+          : typeof q.maxLength === 'number'
+          ? q.maxLength
           : undefined;
 
       // Conditional Logic
@@ -462,6 +505,15 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
         placeholder,
         description: helperText,
         options: options.length > 0 ? options : undefined,
+        hasOther,
+        otherPlaceholder,
+        allowNone,
+        unit,
+        min,
+        max,
+        step,
+        minLength,
+        maxLength,
         conditionalRule,
       });
     });
@@ -542,11 +594,16 @@ export function exportQuestionnaireToJsonTemplate(
       };
 
       if (q.placeholder) {
+        qJson.placeholder = q.placeholder;
         qJson.short_answer = q.placeholder;
       }
 
       if (q.description || q.helperText) {
         qJson.description = q.description || q.helperText;
+      }
+
+      if ((q.type === 'single_choice' || q.type === 'multiple_choice') && q.options && q.options.length > 0) {
+        qJson.options = q.options.map((opt) => opt.label);
       }
 
       if (q.type === 'single_choice' && q.options) {
@@ -560,6 +617,27 @@ export function exportQuestionnaireToJsonTemplate(
           qJson[`check_${idx + 1}`] = opt.label;
         });
       }
+
+      if (q.hasOther) {
+        qJson.allow_other = true;
+        if (q.otherPlaceholder) {
+          qJson.other_placeholder = q.otherPlaceholder;
+        }
+      }
+
+      if (q.allowNone) {
+        qJson.allow_none = true;
+      }
+
+      if (q.unit) {
+        qJson.unit = q.unit;
+      }
+
+      if (typeof q.min === 'number') qJson.min = q.min;
+      if (typeof q.max === 'number') qJson.max = q.max;
+      if (typeof q.step === 'number') qJson.step = q.step;
+      if (typeof q.minLength === 'number') qJson.min_length = q.minLength;
+      if (typeof q.maxLength === 'number') qJson.max_length = q.maxLength;
 
       if (q.type === 'yes_no') {
         const trueOpt = q.options?.find((o) => o.value === 'yes' || o.value === 'true');

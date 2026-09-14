@@ -358,11 +358,15 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                   {[
                     { label: 'Short answers', tag: 'text' },
                     { label: 'Long answers', tag: 'textarea' },
+                    { label: 'Email addresses', tag: 'email' },
+                    { label: 'Phone numbers', tag: 'phone' },
+                    { label: 'Web URLs', tag: 'url' },
                     { label: 'Single-choice options', tag: 'single_choice' },
                     { label: 'Multiple-choice checks', tag: 'multiple_choice' },
                     { label: 'Yes / No questions', tag: 'yes_no' },
-                    { label: 'Number values', tag: 'number' },
+                    { label: 'Number values & units', tag: 'number' },
                     { label: 'Date pickers', tag: 'date' },
+                    { label: 'Other input fields', tag: 'allow_other' },
                     { label: 'Conditional follow-ups', tag: 'conditional' },
                   ].map((item, idx) => (
                     <div

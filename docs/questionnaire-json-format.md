@@ -1,13 +1,13 @@
-# Universal JSON Questionnaire Format Specification
+# Universal JSON Questionnaire Format Specification (V2)
 
-This document defines the universal JSON template specification for creating questionnaires without writing any frontend code.
+This document defines the universal JSON template specification for creating ReqForge questionnaires without writing any frontend code.
 
 The blank, reusable template is located at:
 [`docs/questionnaire-template.json`](file:///home/hanzlaahmad/PersonalProjects/questionnaire/docs/questionnaire-template.json)
 
 ---
 
-## 1. Document Hierarchy
+## 1. Document Hierarchy (V2 Canonical)
 
 ```text
 questionnaire
@@ -21,11 +21,19 @@ questionnaire
            ├── question (string, required)
            ├── type (string, required)
            ├── required (boolean, optional, default: false)
-           ├── short_answer (string, optional)
-           ├── option_1 ... option_N (string, optional, for single_choice)
-           ├── check_1 ... check_N (string, optional, for multiple_choice)
-           ├── true (string, optional, for yes_no)
-           ├── false (string, optional, for yes_no)
+           ├── placeholder (string, optional)
+           ├── description (string, optional)
+           ├── options (array of strings or {label, value} objects, for choice types)
+           ├── allow_other (boolean, optional, default: false)
+           ├── allow_none (boolean, optional, default: false)
+           ├── unit (string, optional, for number type)
+           ├── min (number, optional, for number type)
+           ├── max (number, optional, for number type)
+           ├── step (number, optional, for number type)
+           ├── min_length (number, optional, for text/textarea)
+           ├── max_length (number, optional, for text/textarea)
+           ├── true (string, optional, for yes_no custom label)
+           ├── false (string, optional, for yes_no custom label)
            └── conditional (object, optional)
                 ├── question_id (string, required)
                 └── answer (string | boolean | number, required)
@@ -59,106 +67,116 @@ questionnaire
 
 | Key | Type | Required | Applicable Types | Description |
 |---|---|---|---|---|
-| `question_id` | `string` | **Yes** | Unique identifier for the question across the entire questionnaire (e.g., `q_user_roles`, `pos_integrations`). Backwards-compatible with `id`. |
-| `question` | `string` | **Yes** | The question prompt presented to the user. Backwards-compatible with `text` or `label`. |
-| `type` | `string` | **Yes** | Input control type (see Section 3). |
-| `required` | `boolean` | No | Whether an answer must be provided before submitting (default: `false`). |
-| `short_answer` | `string` | No | `text` | Guidance placeholder or format example for short text input (e.g., "e.g., Jane Doe"). Empty string is ignored. |
-| `option_1` ... `option_N` | `string` | No | `single_choice` | Selectable radio choices. Populated values become options; empty strings `""` are ignored. |
-| `check_1` ... `check_N` | `string` | No | `multiple_choice` | Selectable checkbox choices. Populated values become options; empty strings `""` are ignored. |
-| `true` | `string` | No | `yes_no` | Custom label for the positive/affirmative choice (defaults to "Yes"). |
-| `false` | `string` | No | `yes_no` | Custom label for the negative choice (defaults to "No"). |
+| `question_id` | `string` | **Yes** | All types | Unique identifier for the question across the entire questionnaire (e.g., `company_name`, `target_users`). Backwards-compatible with `id`. |
+| `question` | `string` | **Yes** | All types | The question prompt presented to the user. Backwards-compatible with `text` or `label`. |
+| `type` | `string` | **Yes** | All types | Input control type (see Section 3). |
+| `required` | `boolean` | No | All types | Whether an answer must be provided before submitting (default: `false`). |
+| `placeholder` | `string` | No | `text`, `textarea`, `email`, `phone`, `url`, `number` | Guidance ghost text inside the input field. Backwards-compatible with `short_answer`. |
+| `description` | `string` | No | All types | Explanatory helper text displayed below the question title. Backwards-compatible with `helper_text`. |
+| `options` | `array` | No | `single_choice`, `multiple_choice` | Canonical array of choice labels or `{ label, value }` objects. |
+| `allow_other` | `boolean` | No | `single_choice`, `multiple_choice` | If `true`, renders an interactive "Other (please specify)" option with text field. |
+| `allow_none` | `boolean` | No | `multiple_choice` | If `true`, provides a "None of the above" clearing option. |
+| `unit` | `string` | No | `number` | Display unit badge (e.g., `"users"`, `"USD"`, `"$"`, `"days"`). |
+| `min` | `number` | No | `number` | Minimum numeric constraint. |
+| `max` | `number` | No | `number` | Maximum numeric constraint. |
+| `step` | `number` | No | `number` | Numeric step interval (e.g., `1`, `0.5`, `100`). |
+| `min_length` | `number` | No | `text`, `textarea` | Minimum character length constraint. |
+| `max_length` | `number` | No | `text`, `textarea` | Maximum character length constraint. |
+| `true` | `string` | No | `yes_no` | Custom label for affirmative choice (defaults to `"Yes"`). |
+| `false` | `string` | No | `yes_no` | Custom label for negative choice (defaults to `"No"`). |
 | `conditional` | `object` | No | All types | Conditional display rule (see Section 5). |
 
 ---
 
-## 3. Supported Question Types
+## 3. Supported Question Types (10 Types)
 
-| Type Name | Accepted Aliases | Input Description | Required Option Keys |
+| Type Name | Accepted Aliases | Input Description | Required Configuration |
 |---|---|---|---|
-| `text` | `short_text` | Single-line text input | None (`short_answer` optional placeholder) |
-| `textarea` | `long_text` | Multi-line expandable text area | None |
-| `single_choice` | `radio` | Single-select radio button list | At least two populated `option_1..N` |
-| `multiple_choice` | `checkbox` | Multi-select checkboxes | At least one populated `check_1..N` |
+| `text` | `short_text` | Single-line text input | None (`placeholder` optional) |
+| `textarea` | `long_text` | Multi-line expandable text area | None (`placeholder` optional) |
+| `email` | — | Validated email address input with mail virtual keyboard | None (`placeholder` optional) |
+| `phone` | `tel` | Validated phone number input with numeric telephone keypad | None (`placeholder` optional) |
+| `url` | — | Validated web URL (e.g. repos, design links, staging) | None (`placeholder` optional) |
+| `single_choice` | `radio` | Single-select radio button group | At least 2 options in `options: []` |
+| `multiple_choice` | `checkbox` | Multi-select checkboxes | At least 1 option in `options: []` |
 | `yes_no` | — | Two-state toggle / binary choice | Optional `true` and `false` labels |
-| `number` | — | Numeric value input | None |
-| `date` | — | Date picker input | None |
+| `number` | — | Numeric value input with unit and min/max bounds | None (`unit`, `min`, `max` optional) |
+| `date` | — | Calendar date picker input | None |
 
 > [!WARNING]
 > **Disallowed Types:**
-> The `rating` question type is intentionally not supported and will fail validation during import.
+> The `rating` question type is intentionally not supported in software requirements discovery and will fail validation during import.
 
 ---
 
-## 4. Option Keys & Rules
+## 4. Choice Options & Metadata (V2 Canonical)
 
-### 4.1 Single Choice (`option_1` ... `option_N`)
-For single-choice questions, provide options using keys matching the pattern `option_1`, `option_2`, ..., `option_N`:
+### 4.1 Single Choice (`options: []`)
+For single-choice questions, provide an array of strings:
 
 ```json
 {
-  "question_id": "payment_gateway",
-  "question": "Which payment gateway do you prefer?",
+  "question_id": "target_users",
+  "question": "Who are the intended primary users?",
   "type": "single_choice",
-  "option_1": "Stripe",
-  "option_2": "PayPal",
-  "option_3": "Square",
-  "option_4": "",
-  "option_5": ""
+  "required": true,
+  "options": [
+    "Internal employees",
+    "External customers",
+    "Business partners",
+    "Both internal and external users"
+  ],
+  "allow_other": true
 }
 ```
 
-- **Dynamic Count:** There is no 5-option limit. You can specify `option_6`, `option_7`, etc.
-- **Empty Key Rule:** Any option key with an empty string `""` is discarded and will **not** generate a blank choice.
-- **Ordering:** Options are ordered numerically by their index (`1`, `2`, `3`, ...).
-- **Internal Mapping:** The importer automatically generates URL-safe values and labels:
-  - `"option_1": "Stripe"` $\rightarrow$ `{ "value": "stripe", "label": "Stripe" }`
+- **Clean Arrays:** Standard JSON arrays replace legacy numbered keys (`option_1..N`).
+- **Other Support:** Setting `"allow_other": true` automatically renders a dynamic "Other (please specify)" text field.
+- **Slug Generation:** The importer automatically generates URL-safe unique values and labels:
+  - `"Internal employees"` $\rightarrow$ `{ "value": "internal_employees", "label": "Internal employees" }`
 
-### 4.2 Multiple Choice (`check_1` ... `check_N`)
-For multiple-choice questions, provide choices using keys matching the pattern `check_1`, `check_2`, ..., `check_N`:
+### 4.2 Multiple Choice (`options: []`)
+For multiple-choice questions, provide an array of choices:
 
 ```json
 {
-  "question_id": "features_needed",
-  "question": "Which features do you need in the first release?",
+  "question_id": "integrations",
+  "question": "Which integrations are required?",
   "type": "multiple_choice",
-  "check_1": "User Authentication",
-  "check_2": "Email Notifications",
-  "check_3": "Automated Invoicing",
-  "check_4": "",
-  "check_5": ""
+  "required": false,
+  "options": [
+    "Payment Gateway",
+    "CRM",
+    "Accounting / ERP",
+    "Messaging"
+  ],
+  "allow_other": true
 }
 ```
 
-- **Dynamic Count:** Can extend to `check_6`, `check_7`, etc.
-- **Empty Key Rule:** Any empty string `""` is discarded.
-
-### 4.3 True / False (`true`, `false`)
-For `yes_no` questions, provide optional custom labels for affirmative and negative answers:
+### 4.3 Yes / No Custom Labels (`true`, `false`)
+For `yes_no` questions, provide optional custom labels for affirmative and negative choices:
 
 ```json
 {
-  "question_id": "has_physical_store",
-  "question": "Do you operate physical retail stores?",
+  "question_id": "requires_auth",
+  "question": "Does your application require user authentication?",
   "type": "yes_no",
-  "true": "Yes, we have retail branches",
-  "false": "No, e-commerce only"
+  "true": "Yes, multi-role authentication required",
+  "false": "No, public access only"
 }
 ```
 
-- If `true` or `false` is left empty or omitted, standard labels `"Yes"` and `"No"` are used.
+If `true` or `false` is omitted, standard labels `"Yes"` and `"No"` are used.
 
-### 4.4 Removing Unused Keys
-You are free to delete unused keys completely from your JSON:
-```json
-{
-  "question_id": "company_name",
-  "question": "Company Name",
-  "type": "text",
-  "required": true
-}
-```
-Both deleting unused keys and leaving them as empty strings `""` are valid.
+### 4.4 Backward Compatibility with V1 Formats
+The importer maintains **100% backward compatibility** with legacy V1 questionnaires. If a historical JSON file contains legacy keys:
+- `option_1` ... `option_N` $\rightarrow$ mapped to options array
+- `check_1` ... `check_N` $\rightarrow$ mapped to options array
+- `short_answer` $\rightarrow$ mapped to `placeholder`
+- `radio`, `short_text`, `long_text`, `checkbox` $\rightarrow$ mapped to standard types
+
+Existing stored questionnaires and historical JSON files continue to work without modification.
 
 ---
 
@@ -168,21 +186,27 @@ To display a question only when a preceding question matches a specific answer, 
 
 ```json
 {
-  "question_id": "retail_store_count",
-  "question": "How many physical locations do you have?",
-  "type": "number",
+  "question_id": "auth_methods",
+  "question": "Which authentication methods should be supported?",
+  "type": "multiple_choice",
+  "options": [
+    "Email & Password",
+    "Google Single Sign-On (SSO)",
+    "Microsoft Azure AD / SAML",
+    "Magic Link / Passwordless"
+  ],
   "conditional": {
-    "question_id": "has_physical_store",
-    "answer": "Yes, we have retail branches"
+    "question_id": "requires_auth",
+    "answer": "Yes, multi-role authentication required"
   }
 }
 ```
 
 ### Conditional Matching Behavior:
-- **`question_id`**: The `question_id` of the referenced dependency question. Must exist in the questionnaire.
-- **`answer`**: The expected value or option label that triggers visibility.
+- **`question_id`**: The `question_id` of the referenced dependency question. Must exist earlier in the questionnaire.
+- **`answer`**: The expected value or option label that triggers visibility:
   - For `yes_no`: Matches boolean `true`/`false`, affirmative labels (`"yes"`, `"true"`), or custom `true`/`false` labels.
-  - For `single_choice`: Matches either the option label or generated option value (case-insensitive).
+  - For `single_choice`: Matches either the option label or generated option value.
   - For `multiple_choice`: Question is shown if the selected array contains the expected answer.
 
 ---
@@ -195,11 +219,11 @@ The application validates the JSON template before importing:
 3. `questionnaire.sections` must contain at least one valid section.
 4. Each section must have a non-empty `section_title` and at least one question.
 5. Each question must have a non-empty `question_id`, `question` text, and valid `type`.
-6. `type` must be one of the supported types (or valid aliases); `rating` is rejected.
+6. `type` must be one of the supported types (`text`, `textarea`, `email`, `phone`, `url`, `single_choice`, `multiple_choice`, `yes_no`, `number`, `date`).
 7. All `question_id` values must be unique across the questionnaire.
-8. Single-choice questions must have at least two populated options.
-9. Multiple-choice questions must have at least one populated option.
+8. Single-choice questions must have at least two options.
+9. Multiple-choice questions must have at least one option.
 10. If `conditional` is defined, its `question_id` must reference an existing question, and cannot reference itself.
 
-Error messages clearly indicate the location and reason, for example:
-> `Section 2 ("Integrations") -> Question 3 ("pos_type"): Single choice questions must have at least 2 non-empty options.`
+Error messages clearly pinpoint the section, question, and issue:
+> `Section 2 ("Technical Scope") -> Question 3 ("pos_type"): Single choice questions require at least 2 options (e.g. "options": ["Option 1", "Option 2"]).`

@@ -82,13 +82,10 @@ assert(
   'question' in sampleQ &&
   'type' in sampleQ &&
   'required' in sampleQ &&
-  'short_answer' in sampleQ &&
-  'option_1' in sampleQ &&
-  'check_1' in sampleQ &&
-  'true' in sampleQ &&
-  'false' in sampleQ &&
-  'conditional' in sampleQ,
-  'Template exposes all universal question keys (option_*, check_*, true, false, conditional, short_answer)'
+  'conditional' in sampleQ &&
+  (('options' in sampleQ && 'placeholder' in sampleQ) ||
+    ('option_1' in sampleQ && 'check_1' in sampleQ && 'short_answer' in sampleQ)),
+  'Template exposes all universal question keys (options/placeholder or legacy option_*/short_answer, conditional)'
 );
 
 // -----------------------------------------------------------------------------

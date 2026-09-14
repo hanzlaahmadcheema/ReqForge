@@ -6,6 +6,9 @@
 export type StandardQuestionType =
   | 'text'
   | 'textarea'
+  | 'email'
+  | 'phone'
+  | 'url'
   | 'single_choice'
   | 'multiple_choice'
   | 'yes_no'
@@ -65,8 +68,14 @@ export interface Question {
   options?: QuestionOption[];
   hasOther?: boolean;
   otherPlaceholder?: string;
+  allowNone?: boolean;
   placeholder?: string;
   unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  minLength?: number;
+  maxLength?: number;
   conditionalRule?: ConditionalRule;
   conditional?: ConditionalConfig; // Backwards-compatible alias
   sectionKey?: string; // Backwards-compatible legacy key

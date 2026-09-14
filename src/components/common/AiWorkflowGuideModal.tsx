@@ -299,7 +299,7 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
                     Official Canonical ReqForge JSON Template
                   </h5>
                   <p className="text-[11px] text-stone-500 mt-0.5">
-                    The schema accepted by the JSON importer, supporting all 7 question types and conditional rules.
+                    The schema accepted by the JSON importer, supporting all 10 question types, clean options arrays, and conditional rules.
                   </p>
                 </div>
                 <button
@@ -337,7 +337,7 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
             <div className="space-y-5 animate-in fade-in duration-150">
               <div>
                 <h5 className="text-sm font-bold text-stone-900">
-                  7 Supported Question Types
+                  10 Supported Question Types (V2 Canonical)
                 </h5>
                 <p className="text-xs text-stone-500 mt-0.5">
                   ReqForge natively renders each of these inputs. The AI agent should only use these types.
@@ -383,6 +383,28 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
                 <p className="text-[11px] text-stone-500">
                   Note: The referenced <code className="font-mono">question_id</code> must exist in the questionnaire prior to this question.
                 </p>
+              </div>
+
+              {/* V2 Options & Metadata Section */}
+              <div className="bg-stone-50 border border-stone-200/90 rounded-xl p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-stone-700" />
+                  <h6 className="text-xs font-bold text-stone-900">
+                    V2 Options Arrays & Rich Metadata
+                  </h6>
+                </div>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  Canonical V2 uses clean JSON arrays for choices and supports rich constraints like <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-stone-200">allow_other</code>, <code className="font-mono text-stone-800 bg-white px-1 py-0.5 rounded border border-stone-200">unit</code>, and numeric bounds:
+                </p>
+                <div className="bg-stone-900 text-stone-100 p-3 rounded-lg font-mono text-[11px] overflow-x-auto">
+                  {`{
+  "question_id": "integrations",
+  "question": "Which integrations are required?",
+  "type": "multiple_choice",
+  "options": ["Payment Gateway", "CRM", "Accounting / ERP", "Messaging"],
+  "allow_other": true
+}`}
+                </div>
               </div>
             </div>
           )}

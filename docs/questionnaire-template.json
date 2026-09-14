@@ -12,24 +12,14 @@
             "question": "",
             "type": "",
             "required": false,
-
-            "short_answer": "",
-
-            "option_1": "",
-            "option_2": "",
-            "option_3": "",
-            "option_4": "",
-            "option_5": "",
-
-            "check_1": "",
-            "check_2": "",
-            "check_3": "",
-            "check_4": "",
-            "check_5": "",
-
-            "true": "",
-            "false": "",
-
+            "placeholder": "",
+            "description": "",
+            "options": [
+              "",
+              ""
+            ],
+            "allow_other": false,
+            "unit": "",
             "conditional": {
               "question_id": "",
               "answer": ""

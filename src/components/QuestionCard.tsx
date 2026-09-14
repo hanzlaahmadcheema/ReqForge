@@ -108,6 +108,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   const isSingleChoice = question.type === 'single_choice' || question.type === 'radio';
   const isMultipleChoice = question.type === 'multiple_choice' || question.type === 'checkbox';
   const isText = question.type === 'text' || question.type === 'short_text';
+  const isEmail = question.type === 'email';
+  const isPhone = question.type === 'phone';
+  const isUrl = question.type === 'url';
   const isTextarea = question.type === 'textarea' || question.type === 'long_text';
   const isNumber = question.type === 'number';
   const isDate = question.type === 'date';
@@ -316,6 +319,50 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={typeof currentValue === 'string' ? currentValue : ''}
               onChange={(e) => handleValueChange(e.target.value)}
               placeholder={question.placeholder || 'Type your answer here...'}
+              minLength={question.minLength}
+              maxLength={question.maxLength}
+              className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs"
+            />
+          </div>
+        )}
+
+        {/* 4b. EMAIL */}
+        {isEmail && (
+          <div>
+            <input
+              type="email"
+              inputMode="email"
+              value={typeof currentValue === 'string' ? currentValue : ''}
+              onChange={(e) => handleValueChange(e.target.value)}
+              placeholder={question.placeholder || 'name@example.com'}
+              className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs"
+            />
+          </div>
+        )}
+
+        {/* 4c. PHONE */}
+        {isPhone && (
+          <div>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={typeof currentValue === 'string' ? currentValue : ''}
+              onChange={(e) => handleValueChange(e.target.value)}
+              placeholder={question.placeholder || '+1 (555) 000-0000'}
+              className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs"
+            />
+          </div>
+        )}
+
+        {/* 4d. URL */}
+        {isUrl && (
+          <div>
+            <input
+              type="url"
+              inputMode="url"
+              value={typeof currentValue === 'string' ? currentValue : ''}
+              onChange={(e) => handleValueChange(e.target.value)}
+              placeholder={question.placeholder || 'https://example.com'}
               className="w-full px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] shadow-2xs"
             />
           </div>
@@ -329,6 +376,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={currentValue !== null && currentValue !== undefined ? String(currentValue) : ''}
               onChange={(e) => handleValueChange(e.target.value ? Number(e.target.value) : '')}
               placeholder={question.placeholder || '0'}
+              min={question.min}
+              max={question.max}
+              step={question.step}
               className="w-full sm:w-44 px-3.5 py-3 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all min-h-[48px] tabular-nums shadow-2xs"
             />
             {question.unit && (
@@ -357,6 +407,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               value={typeof currentValue === 'string' ? currentValue : ''}
               onChange={(e) => handleValueChange(e.target.value)}
               placeholder={question.placeholder || 'Type detailed notes or explanation here...'}
+              minLength={question.minLength}
+              maxLength={question.maxLength}
               className="w-full p-3.5 rounded-xl border border-stone-200 bg-white text-base sm:text-sm text-stone-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all resize-y min-h-[100px] shadow-2xs leading-relaxed"
             />
           </div>
