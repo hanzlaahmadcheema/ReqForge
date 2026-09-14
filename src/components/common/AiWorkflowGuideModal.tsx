@@ -154,7 +154,7 @@ export const AiWorkflowGuideModal: React.FC<AiWorkflowGuideModalProps> = ({
                   </h4>
                   <p className="mt-2 text-xs sm:text-sm text-stone-300 leading-relaxed">
                     Give your preferred AI agent (ChatGPT, Claude, Gemini, Copilot, Cursor) the ReqForge standard format.
-                    The agent drafts the questions, you paste the JSON, and ReqForge instantly turns it into a client-ready, PIN-protected form.
+                    The agent drafts the questions, you paste the JSON, and ReqForge instantly turns it into a client-ready form.
                   </p>
                 </div>
                 <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-stone-800 rounded-full opacity-50 blur-xl pointer-events-none" />

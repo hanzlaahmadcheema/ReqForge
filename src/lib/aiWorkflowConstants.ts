@@ -220,12 +220,12 @@ export const WORKFLOW_STEPS = [
   {
     number: '4',
     title: 'Instant Client-Ready Form',
-    description: 'ReqForge automatically generates the beautiful, responsive, PIN-secured questionnaire.'
+    description: 'ReqForge automatically generates the beautiful, responsive, client-ready questionnaire.'
   },
   {
     number: '5',
     title: 'Share & Collect Specs',
-    description: 'Send the link and PIN to your client. Submissions become structured engineering specs.'
+    description: 'Send the link directly to your client. Submissions become structured engineering specs.'
   }
 ];
 

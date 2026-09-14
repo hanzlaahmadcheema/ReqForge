@@ -367,7 +367,7 @@ export interface PublicForm {
   submissionCount?: number;
 }
 
-// Safe metadata exposed to unauthenticated public client before PIN verification
+// Safe metadata exposed to unauthenticated public client
 export interface PublicFormInfo {
   id: string;
   workspaceId?: string;
@@ -377,6 +377,11 @@ export interface PublicFormInfo {
   contactInfo?: string;
   projectName?: string;
   clientName?: string;
+  projectId?: string;
+  clientId?: string;
+  shareToken?: string;
+  questionnaireId?: string;
+  questionnaireVersion?: number;
   hasPin: boolean;
   status: PublicFormStatus;
 }

@@ -21,16 +21,21 @@ export async function handleGetPublicFormInfo(req: Request, res: Response): Prom
     }
 
     const data = snap.data() as PublicForm;
-    // Strictly project safe public metadata: never return pinHash, pinSalt, or capability tokens
     const safeInfo: PublicFormInfo = {
       id: data.id,
+      workspaceId: data.workspaceId,
       title: data.title || 'Client Requirements Questionnaire',
       description: data.description || '',
       instructions: data.instructions || '',
       contactInfo: data.contactInfo || '',
       projectName: data.projectName || '',
       clientName: data.clientName || '',
-      hasPin: data.hasPin !== false,
+      projectId: data.projectId,
+      clientId: data.clientId,
+      shareToken: data.shareToken || '',
+      questionnaireId: data.questionnaireId,
+      questionnaireVersion: data.questionnaireVersion,
+      hasPin: data.hasPin === true,
       status: data.status || 'active',
     };
 
@@ -128,7 +133,7 @@ export async function handleVerifyPublicFormPin(req: Request, res: Response): Pr
       }
     }
 
-    let tokenToReturn = shareToken || '';
+    let tokenToReturn = form.shareToken || shareToken || '';
     if (form.hasPin && encryptedShareToken && iv && authTag && pin && pinSalt) {
       const decrypted = await unsealShareToken(
         encryptedShareToken,

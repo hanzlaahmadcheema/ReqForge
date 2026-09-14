@@ -54,33 +54,33 @@ export interface CreatePublicFormParams {
   questionnaireId: string;
   questionnaireVersion: number;
   shareToken: string; // The Phase 2 capability token
-  pin?: string; // If omitted, PIN can be auto-generated or left unprotected
-  requirePin?: boolean; // Default: true
+  pin?: string; // Optional: only if PIN is explicitly requested
+  requirePin?: boolean; // Default: false (Public is Public)
 }
 
 /**
- * Creates a new PIN-protected Public Form assignment scoped to a tenant workspace.
- * Public presentation metadata is saved in /publicForms/{publicFormId}.
- * Secret credentials (PIN hash, salt, encrypted token) are isolated in /publicFormsSecurity/{publicFormId}.
- * Returns the created form and the one-time plaintext PIN for the admin.
+ * Creates a new Public Form assignment scoped to a tenant workspace.
+ * "Public is Public": Forms do not require a PIN by default.
+ * Public presentation metadata and capability tokens are saved in /publicForms/{publicFormId}.
+ * Secret credentials are only created if requirePin is explicitly true.
  */
 export async function createPublicForm(
   params: CreatePublicFormParams
 ): Promise<{ form: PublicForm; plaintextPin: string }> {
   const publicFormId = generatePublicFormId();
-  const requirePin = params.requirePin !== false;
-  const plaintextPin = params.pin ? params.pin.trim() : generateRandomPin(6);
+  const requirePin = params.requirePin === true;
+  const plaintextPin = requirePin ? (params.pin ? params.pin.trim() : generateRandomPin(6)) : '';
 
   const workspaceId = params.workspaceId || auth.currentUser?.uid || 'default';
   const ownerId = params.ownerId || auth.currentUser?.uid || 'default';
 
-  const salt = generateSalt(16);
+  const salt = requirePin ? generateSalt(16) : '';
   const pinHashVal = requirePin ? await hashPin(plaintextPin, salt) : '';
-  const sealed = await sealShareToken(params.shareToken, plaintextPin, salt);
+  const sealed = requirePin ? await sealShareToken(params.shareToken, plaintextPin, salt) : null;
 
   const now = new Date().toISOString();
 
-  // 1. Public document (zero secrets: no pinHash, no pinSalt, no encryptedShareToken, no shareToken)
+  // 1. Public document (Direct access: Public is Public)
   const newForm: PublicForm = {
     id: publicFormId,
     workspaceId,
@@ -96,7 +96,7 @@ export async function createPublicForm(
     assignmentId: params.assignmentId || '',
     questionnaireId: params.questionnaireId,
     questionnaireVersion: params.questionnaireVersion,
-    shareToken: '', // Redacted from public collection for security
+    shareToken: params.shareToken, // Stored directly so public clients can hydrate the questionnaire without a PIN
     hasPin: requirePin,
     status: 'active',
     createdAt: now,
@@ -104,16 +104,16 @@ export async function createPublicForm(
     submissionCount: 0,
   };
 
-  // 2. Private security record (isolated from public reads)
+  // 2. Private security record (for audit or legacy PIN verification)
   const securityRecord: PublicFormSecurityRecord = {
     publicFormId,
     workspaceId,
     ownerId,
     pinHash: pinHashVal,
     pinSalt: salt,
-    encryptedShareToken: sealed.encrypted,
-    iv: sealed.iv,
-    authTag: sealed.authTag,
+    encryptedShareToken: sealed?.encrypted || '',
+    iv: sealed?.iv || '',
+    authTag: sealed?.authTag || '',
     shareToken: params.shareToken,
     updatedAt: now,
   };
@@ -124,7 +124,7 @@ export async function createPublicForm(
   await setDoc(docRef, newForm);
   await setDoc(secDocRef, securityRecord);
 
-  return { form: newForm, plaintextPin: requirePin ? plaintextPin : '' };
+  return { form: newForm, plaintextPin };
 }
 
 /**
@@ -292,7 +292,12 @@ export async function getPublicFormSafeInfo(
       contactInfo: d.contactInfo || '',
       projectName: d.projectName || '',
       clientName: d.clientName || '',
-      hasPin: d.hasPin !== false,
+      projectId: d.projectId,
+      clientId: d.clientId,
+      shareToken: d.shareToken,
+      questionnaireId: d.questionnaireId,
+      questionnaireVersion: d.questionnaireVersion,
+      hasPin: d.hasPin === true,
       status: (d.status as PublicFormStatus) || 'active',
     };
   } catch {

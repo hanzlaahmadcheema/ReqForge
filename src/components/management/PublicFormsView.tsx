@@ -38,7 +38,6 @@ import {
   Submission,
 } from '../../types';
 import { CreatePublicFormParams } from '../../lib/publicFormService';
-import { generateRandomPin } from '../../lib/cryptoUtils';
 import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface PublicFormsViewProps {
@@ -49,7 +48,7 @@ interface PublicFormsViewProps {
   submissions: Submission[];
   onCreateForm: (params: CreatePublicFormParams) => Promise<{ form: PublicForm; plaintextPin: string }>;
   onUpdateStatus: (id: string, status: PublicFormStatus) => Promise<void>;
-  onUpdatePin: (id: string, newPin?: string) => Promise<{ plaintextPin: string }>;
+  onUpdatePin?: (id: string, newPin?: string) => Promise<{ plaintextPin: string }>;
   onRefresh?: () => void;
 }
 
@@ -70,19 +69,11 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [oneTimePinInfo, setOneTimePinInfo] = useState<{
+  const [createdFormInfo, setCreatedFormInfo] = useState<{
     formTitle: string;
     publicUrl: string;
-    plaintextPin: string;
-    isReset?: boolean;
   } | null>(null);
-  const [pinCopied, setPinCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
-  // Reset PIN modal state
-  const [resetPinForm, setResetPinForm] = useState<PublicForm | null>(null);
-  const [customResetPin, setCustomResetPin] = useState('');
-  const [isResettingPin, setIsResettingPin] = useState(false);
 
   // Form Creation Field State
   const [newTitle, setNewTitle] = useState('');
@@ -90,8 +81,6 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
   const [newInstructions, setNewInstructions] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedQuestionnaireId, setSelectedQuestionnaireId] = useState<string>('');
-  const [customPin, setCustomPin] = useState<string>('');
-  const [useAutoPin, setUseAutoPin] = useState<boolean>(true);
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -127,9 +116,7 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
     setSelectedProjectId(firstP ? firstP.id : '');
     setNewTitle(firstP ? `${firstP.name} Requirements Intake` : 'Client Requirements Intake');
     setNewDescription('Please complete this requirements gathering form to help us understand your specifications.');
-    setNewInstructions('Fill in responses for each section. You can save a draft at any time and return using your PIN.');
-    setCustomPin(generateRandomPin(6));
-    setUseAutoPin(true);
+    setNewInstructions('Fill in responses for each section. You can save a draft at any time and return using the form link.');
     setCreateError(null);
     setShowCreateModal(true);
   };
@@ -173,12 +160,6 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
     }
 
     const client = clients.find((c) => c.id === proj.clientId);
-    const pinToUse = useAutoPin ? generateRandomPin(6) : customPin.trim();
-
-    if (!pinToUse || pinToUse.length < 4) {
-      setCreateError('PIN must be at least 4 digits or characters.');
-      return;
-    }
 
     setIsSubmittingCreate(true);
     setCreateError(null);
@@ -197,46 +178,19 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
         questionnaireId: q.id,
         questionnaireVersion: q.version || 1,
         shareToken: shareToken,
-        pin: pinToUse,
-        requirePin: true,
+        requirePin: false,
       });
 
       setShowCreateModal(false);
       const origin = window.location.origin;
-      setOneTimePinInfo({
+      setCreatedFormInfo({
         formTitle: result.form.title,
         publicUrl: `${origin}/form/${result.form.id}`,
-        plaintextPin: result.plaintextPin,
-        isReset: false,
       });
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create public form.');
     } finally {
       setIsSubmittingCreate(false);
-    }
-  };
-
-  const handleExecuteResetPin = async () => {
-    if (!resetPinForm) return;
-
-    setIsResettingPin(true);
-    try {
-      const pinToUse = customResetPin.trim() || undefined;
-      const res = await onUpdatePin(resetPinForm.id, pinToUse);
-      const origin = window.location.origin;
-
-      setResetPinForm(null);
-      setCustomResetPin('');
-      setOneTimePinInfo({
-        formTitle: resetPinForm.title,
-        publicUrl: `${origin}/form/${resetPinForm.id}`,
-        plaintextPin: res.plaintextPin,
-        isReset: true,
-      });
-    } catch (err: any) {
-      alert(`Failed to reset PIN: ${err.message || err}`);
-    } finally {
-      setIsResettingPin(false);
     }
   };
 
@@ -250,11 +204,11 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
               <Link2 className="w-4 h-4" />
             </span>
             <h2 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
-              Public Guest Forms & PIN Access
+              Public Client Forms
             </h2>
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            Create public links protected by salted PINs. Clients can complete questionnaires without administrative credentials.
+            Create direct public form links for clients. Clients can access and complete questionnaires directly without administrative credentials or accounts.
           </p>
         </div>
 
@@ -368,12 +322,10 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                       {form.status}
                     </span>
 
-                    {form.hasPin && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-500">
-                        <KeyRound className="w-3 h-3 text-amber-600" />
-                        <span>PIN Protected</span>
-                      </span>
-                    )}
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Public Access</span>
+                    </span>
 
                     <span className="text-[11px] text-stone-400">
                       Created {new Date(form.createdAt).toLocaleDateString()}
@@ -449,20 +401,6 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                     <ExternalLink className="w-4 h-4" />
                   </a>
 
-                  {/* Reset PIN */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetPinForm(form);
-                      setCustomResetPin(generateRandomPin(6));
-                    }}
-                    className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl transition-colors cursor-pointer"
-                    title="Reset or re-generate access PIN"
-                  >
-                    <KeyRound className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Reset PIN</span>
-                  </button>
-
                   {/* Status Dropdown */}
                   <select
                     value={form.status}
@@ -498,7 +436,7 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                     Create Public Form Link
                   </h3>
                   <p className="text-xs text-stone-500">
-                    Generate a PIN-protected questionnaire URL for your client
+                    Generate a direct questionnaire URL for your client
                   </p>
                 </div>
               </div>
@@ -607,48 +545,6 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                 />
               </div>
 
-              {/* PIN Configuration Box */}
-              <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
-                    <KeyRound className="w-4 h-4 text-amber-700" />
-                    <span>Access PIN Configuration</span>
-                  </div>
-
-                  <label className="flex items-center gap-2 text-xs font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={useAutoPin}
-                      onChange={(e) => {
-                        setUseAutoPin(e.target.checked);
-                        if (e.target.checked) {
-                          setCustomPin(generateRandomPin(6));
-                        }
-                      }}
-                      className="rounded text-stone-900 focus:ring-stone-900"
-                    />
-                    <span>Auto-generate 6-digit PIN</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-stone-600 mb-1">
-                    {useAutoPin ? 'Generated PIN (can be adjusted before creation)' : 'Custom Access PIN (min 4 characters)'}
-                  </label>
-                  <input
-                    type="text"
-                    value={customPin}
-                    onChange={(e) => setCustomPin(e.target.value)}
-                    disabled={useAutoPin}
-                    placeholder="Enter PIN"
-                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-mono tracking-widest text-stone-900 focus:outline-none focus:border-amber-600 disabled:opacity-80"
-                  />
-                  <p className="mt-1 text-[11px] text-amber-800/80">
-                    Note: Plaintext PIN will be displayed once upon creation. It is securely salted and cannot be retrieved later.
-                  </p>
-                </div>
-              </div>
-
               {/* Modal buttons */}
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">
                 <button
@@ -672,9 +568,9 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
       )}
 
       {/* ------------------------------------------------------------------- */}
-      {/* 2. Modal: One-Time Display of Generated PIN and Link                */}
+      {/* 2. Modal: Display Created Public Form Link                          */}
       {/* ------------------------------------------------------------------- */}
-      {oneTimePinInfo && (
+      {createdFormInfo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-stone-200 p-6 sm:p-8 space-y-6">
             <div className="text-center space-y-2">
@@ -682,10 +578,10 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-black text-stone-900">
-                {oneTimePinInfo.isReset ? 'PIN Reset Successfully' : 'Public Form Created!'}
+                Public Form Created!
               </h3>
               <p className="text-xs text-stone-500">
-                Please copy the access credentials now. For security, the PIN is never stored in plaintext and cannot be displayed again.
+                Share this link with your client. They can open and complete the questionnaire directly without needing a PIN or account.
               </p>
             </div>
 
@@ -697,7 +593,7 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                   Form Title
                 </span>
                 <span className="text-xs font-bold text-stone-800">
-                  {oneTimePinInfo.formTitle}
+                  {createdFormInfo.formTitle}
                 </span>
               </div>
 
@@ -710,13 +606,13 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                   <input
                     type="text"
                     readOnly
-                    value={oneTimePinInfo.publicUrl}
+                    value={createdFormInfo.publicUrl}
                     className="flex-1 px-2.5 py-1.5 bg-white border border-stone-200 text-xs font-mono rounded-lg text-stone-700 select-all"
                   />
                   <button
                     type="button"
                     onClick={async () => {
-                      const ok = await copyToClipboard(oneTimePinInfo.publicUrl);
+                      const ok = await copyToClipboard(createdFormInfo.publicUrl);
                       if (ok) {
                         setLinkCopied(true);
                         setTimeout(() => setLinkCopied(false), 2000);
@@ -728,115 +624,18 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Plaintext PIN */}
-              <div>
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                  Access PIN (Give this to your client)
-                </span>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex-1 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-center font-mono font-black text-xl tracking-widest text-amber-900">
-                    {oneTimePinInfo.plaintextPin}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const ok = await copyToClipboard(oneTimePinInfo.plaintextPin);
-                      if (ok) {
-                        setPinCopied(true);
-                        setTimeout(() => setPinCopied(false), 2000);
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-semibold cursor-pointer shrink-0"
-                  >
-                    {pinCopied ? 'Copied' : 'Copy PIN'}
-                  </button>
-                </div>
-              </div>
             </div>
 
             <div className="text-center">
               <button
                 type="button"
                 onClick={() => {
-                  setOneTimePinInfo(null);
-                  setPinCopied(false);
+                  setCreatedFormInfo(null);
                   setLinkCopied(false);
                 }}
                 className="w-full py-3 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-stone-900/10 cursor-pointer"
               >
-                I Have Saved the PIN and Link
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ------------------------------------------------------------------- */}
-      {/* 3. Modal: Reset PIN                                                 */}
-      {/* ------------------------------------------------------------------- */}
-      {resetPinForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-stone-200 p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-amber-600" />
-                <h3 className="text-base font-bold text-stone-900">Reset Access PIN</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setResetPinForm(null)}
-                className="text-stone-400 hover:text-stone-700 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <p className="text-xs text-stone-600 leading-relaxed">
-                Resetting the PIN will invalidate any existing client sessions for{' '}
-                <strong className="text-stone-900">{resetPinForm.title}</strong>. Clients will need the new PIN to access the questionnaire.
-              </p>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
-                  New Access PIN
-                </label>
-                <input
-                  type="text"
-                  value={customResetPin}
-                  onChange={(e) => setCustomResetPin(e.target.value)}
-                  placeholder="Enter or generate new PIN"
-                  className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-mono tracking-widest text-stone-900 focus:outline-none focus:border-stone-800"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setCustomResetPin(generateRandomPin(6))}
-                  className="text-xs text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
-                >
-                  Generate random 6-digit PIN
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-3 flex items-center justify-end gap-2 border-t border-stone-100">
-              <button
-                type="button"
-                onClick={() => setResetPinForm(null)}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteResetPin}
-                disabled={isResettingPin || !customResetPin.trim()}
-                className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {isResettingPin ? 'Updating PIN...' : 'Save & Reveal New PIN'}
+                Done
               </button>
             </div>
           </div>

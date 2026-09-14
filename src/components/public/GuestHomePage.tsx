@@ -160,21 +160,21 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
           </h1>
 
           <p className="mt-4 sm:mt-6 text-sm sm:text-base text-stone-600 max-w-xl mx-auto leading-relaxed">
-            Access your assigned project questionnaire using the secure identifier and PIN provided by your project administrator.
+            Access your assigned project questionnaire using the form link or identifier provided by your project administrator.
           </p>
 
           {/* Form Access Card */}
           <div className="mt-10 max-w-md mx-auto bg-white p-6 sm:p-8 rounded-3xl border border-stone-200/90 shadow-xl shadow-stone-200/50 text-left">
             <div className="flex items-center gap-2.5 pb-4 border-b border-stone-100">
               <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-800 flex items-center justify-center border border-stone-200">
-                <KeyRound className="w-4 h-4" />
+                <FileCheck2 className="w-4 h-4" />
               </div>
               <div>
                 <h2 className="text-sm font-bold text-stone-900 leading-tight">
                   Access Questionnaire Form
                 </h2>
                 <p className="text-[11px] text-stone-500">
-                  Enter your Form Identifier to proceed to PIN verification
+                  Enter your Form Identifier to access the questionnaire
                 </p>
               </div>
             </div>
@@ -210,7 +210,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                   </p>
                 )}
                 <p className="mt-1.5 text-[11px] text-stone-400">
-                  You will be prompted for your secure access PIN on the next screen.
+                  Access the client form directly without requiring an account.
                 </p>
               </div>
 
@@ -278,7 +278,7 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1.5" />
                     <span className="text-[10px] font-mono font-bold text-emerald-700 block uppercase">Step 3</span>
                     <span className="text-xs font-bold block text-stone-900 mt-0.5">Client-Ready Form</span>
-                    <span className="text-[10px] text-emerald-800/80 leading-tight block mt-0.5">Client answers via secure PIN</span>
+                    <span className="text-[10px] text-emerald-800/80 leading-tight block mt-0.5">Client answers client-ready form directly</span>
                   </div>
                 </div>
               </div>
@@ -405,10 +405,10 @@ export const GuestHomePage: React.FC<GuestHomePageProps> = ({
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <h4 className="text-sm font-bold text-stone-900">
-                PIN-Protected Scoped Access
+                Direct Scoped Public Access
               </h4>
               <p className="text-xs text-stone-600 mt-2 leading-relaxed">
-                Forms are isolated by project with salted, server-verified PINs. Plaintext credentials are never exposed publicly.
+                Forms are isolated by project and workspace with direct, seamless access. Clients can complete questionnaires without needing an account.
               </p>
             </div>
 

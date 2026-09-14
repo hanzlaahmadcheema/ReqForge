@@ -33,6 +33,7 @@ import {
   getPublicFormSafeInfo,
   verifyPublicFormPin,
   getFormSession,
+  saveFormSession,
   clearFormSession,
 } from '../../lib/publicFormService';
 import {
@@ -100,6 +101,37 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
           setInfoError('This form identifier is invalid or does not exist.');
         } else {
           setFormInfo(info);
+          // Public is Public: If form does not have PIN, immediately establish authorized session
+          if (!info.hasPin) {
+            if (info.shareToken && info.projectId) {
+              const autoSession: AuthorizedFormSession = {
+                publicFormId: info.id,
+                workspaceId: info.workspaceId,
+                projectId: info.projectId,
+                shareToken: info.shareToken,
+                questionnaireId: info.questionnaireId || '',
+                questionnaireVersion: info.questionnaireVersion || 1,
+                clientName: info.clientName || '',
+                projectName: info.projectName || '',
+                formTitle: info.title,
+                instructions: info.instructions,
+                verifiedAt: new Date().toISOString(),
+              };
+              saveFormSession(autoSession);
+              setSession(autoSession);
+            } else {
+              // Attempt zero-pin server verification if shareToken was isolated
+              verifyPublicFormPin(publicFormId, '')
+                .then((res) => {
+                  if (res.success && res.session && isMounted) {
+                    setSession(res.session);
+                  }
+                })
+                .catch(() => {
+                  // Handled by loading/error state
+                });
+            }
+          }
         }
       })
       .catch((err) => {
@@ -455,6 +487,17 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
   // 5. PIN Prompt View (if not yet authenticated)
   // ---------------------------------------------------------------------------
   if (!session) {
+    if (!formInfo.hasPin) {
+      return (
+        <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
+          <div className="flex items-center gap-3 text-stone-600 text-sm font-medium">
+            <div className="w-5 h-5 border-2 border-stone-800 border-t-transparent rounded-full animate-spin" />
+            <span>Opening client questionnaire...</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-stone-50 flex flex-col justify-between selection:bg-stone-900 selection:text-white">
         <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 py-3 px-4">
@@ -631,12 +674,12 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
         </div>
         <button
           type="button"
-          onClick={handleLockSession}
-          className="inline-flex items-center gap-1 text-stone-400 hover:text-white transition-colors cursor-pointer"
-          title="Lock form session"
+          onClick={onBackToHome}
+          className="inline-flex items-center gap-1.5 text-stone-400 hover:text-white transition-colors cursor-pointer text-xs font-medium"
+          title="Exit to home"
         >
-          <Lock className="w-3 h-3" />
-          <span>Lock Form</span>
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Exit</span>
         </button>
       </div>
 
