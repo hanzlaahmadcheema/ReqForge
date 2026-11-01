@@ -15,12 +15,13 @@ import {
   KeyRound,
   User as UserIcon,
 } from 'lucide-react';
-import type { User } from 'firebase/auth';
+import { GoogleAuthProvider, type User, type AuthCredential } from 'firebase/auth';
 import {
   signInWithEmail,
   signUpWithEmail,
   signInWithGoogle,
   saveStoredAdminSession,
+  linkGoogleWithPasswordOnSignIn,
 } from '../lib/adminAuthService';
 import { AdminRecord, Workspace } from '../types';
 
@@ -36,6 +37,13 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
   const [displayName, setDisplayName] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // State when Google sign-in encounters an existing email/password account
+  const [pendingGoogleLink, setPendingGoogleLink] = useState<{
+    email: string;
+    credential: AuthCredential;
+  } | null>(null);
+  const [linkPassword, setLinkPassword] = useState('');
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +65,9 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
       console.warn('Email Sign-in error:', err);
       const code = (err as { code?: string })?.code || '';
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
-        setErrorMessage('Invalid email or password. Please check your credentials and try again.');
+        setErrorMessage(
+          'Invalid email or password. If you originally created this account with Google, please click "Continue with Google" below. Once signed in, you can set a password in the Account tab.'
+        );
       } else if (code === 'auth/too-many-requests') {
         setErrorMessage('Access temporarily blocked due to multiple failed attempts. Please try again later.');
       } else {
@@ -96,7 +106,9 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
       console.warn('Email Sign-up error:', err);
       const code = (err as { code?: string })?.code || '';
       if (code === 'auth/email-already-in-use') {
-        setErrorMessage('An account with this email address already exists. Please sign in instead.');
+        setErrorMessage(
+          'An account with this email address already exists. If you previously registered using Google, please sign in with Google — you can then configure an email password in your Account settings.'
+        );
       } else if (code === 'auth/weak-password') {
         setErrorMessage('Password is too weak. Please use at least 6 characters.');
       } else {
@@ -110,6 +122,7 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
   const handleGoogleSignIn = async () => {
     setAuthLoading(true);
     setErrorMessage(null);
+    setPendingGoogleLink(null);
 
     try {
       const { user, workspace, adminRecord } = await signInWithGoogle();
@@ -122,7 +135,19 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
       const msg = err instanceof Error ? err.message : 'Failed to authenticate with Google.';
       const errCode = (err as { code?: string })?.code || '';
 
-      if (errCode === 'auth/popup-closed-by-user' || msg.includes('popup-closed-by-user')) {
+      if (errCode === 'auth/account-exists-with-different-credential') {
+        // An email/password account already exists with this email address!
+        const pendingCred = GoogleAuthProvider.credentialFromError(err as any);
+        const existingEmail = (err as any)?.customData?.email || (err as any)?.email || email.trim();
+        if (pendingCred && existingEmail) {
+          setPendingGoogleLink({ email: existingEmail, credential: pendingCred });
+          setErrorMessage(null);
+        } else {
+          setErrorMessage(
+            `An account with this email already exists using Email & Password. Please sign in with your email and password, then connect your Google account in Account settings.`
+          );
+        }
+      } else if (errCode === 'auth/popup-closed-by-user' || msg.includes('popup-closed-by-user')) {
         setErrorMessage('Google sign-in was cancelled before completion.');
       } else if (errCode === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
         const host = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
@@ -131,6 +156,37 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
         );
       } else {
         setErrorMessage(msg);
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLinkGoogleWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingGoogleLink || !linkPassword) return;
+
+    setAuthLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const { user, workspace, adminRecord } = await linkGoogleWithPasswordOnSignIn(
+        pendingGoogleLink.email,
+        linkPassword,
+        pendingGoogleLink.credential
+      );
+      if (adminRecord && adminRecord.enabled) {
+        saveStoredAdminSession(adminRecord);
+      }
+      setPendingGoogleLink(null);
+      onSuccess(user, workspace, adminRecord);
+    } catch (err: unknown) {
+      console.warn('Error linking Google with password:', err);
+      const code = (err as { code?: string })?.code || '';
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setErrorMessage('Incorrect password. Please enter the password associated with this email.');
+      } else {
+        setErrorMessage(err instanceof Error ? err.message : 'Failed to verify password and link Google.');
       }
     } finally {
       setAuthLoading(false);
@@ -188,6 +244,52 @@ export const AdminPinPrompt: React.FC<AdminPinPromptProps> = ({ onSuccess, onCan
           <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2.5">
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{errorMessage}</span>
+          </div>
+        )}
+
+        {/* PENDING GOOGLE LINK PROMPT */}
+        {pendingGoogleLink && (
+          <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 space-y-3 animate-in fade-in">
+            <div className="flex items-center gap-2 font-bold text-blue-900">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Link Google Account to Your Workspace</span>
+            </div>
+            <p className="text-blue-800 leading-relaxed">
+              An account with <strong>{pendingGoogleLink.email}</strong> was already created using Email &amp; Password.
+              Enter your password to sign in and attach this Google account so you can sign in with both!
+            </p>
+            <form onSubmit={handleLinkGoogleWithPassword} className="space-y-3 pt-1">
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-blue-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={linkPassword}
+                  onChange={(e) => setLinkPassword(e.target.value)}
+                  placeholder="Enter your existing account password"
+                  required
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-blue-300 text-xs bg-white focus:ring-2 focus:ring-blue-900 focus:outline-hidden"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={authLoading || !linkPassword}
+                  className="flex-1 py-2 px-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50 min-h-[38px]"
+                >
+                  {authLoading ? 'Verifying & Linking...' : 'Sign In & Link Google'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingGoogleLink(null);
+                    setLinkPassword('');
+                  }}
+                  className="px-3 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

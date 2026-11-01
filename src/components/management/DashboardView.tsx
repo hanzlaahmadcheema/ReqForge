@@ -20,7 +20,7 @@ interface DashboardViewProps {
   projects: Project[];
   questionnaires: Questionnaire[];
   submissions: Submission[];
-  onNavigateTab: (tab: 'clients' | 'projects' | 'questionnaires' | 'submissions') => void;
+  onNavigateTab: (tab: 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms' | 'account') => void;
   onOpenNewClient: () => void;
   onOpenNewProject: () => void;
   onOpenShareLink: (project: Project) => void;

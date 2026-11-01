@@ -423,6 +423,14 @@ export interface Workspace {
   updatedAt: string;
 }
 
+export interface UserAuthProviders {
+  hasGoogle: boolean;
+  hasPassword: boolean;
+  googleEmail: string | null;
+  email: string | null;
+  providers: string[];
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -430,6 +438,9 @@ export interface UserProfile {
   workspaceId: string;
   createdAt: string;
   updatedAt: string;
+  providers?: string[];
+  hasGoogle?: boolean;
+  hasPassword?: boolean;
 }
 
 export interface PublicFormSecurityRecord {

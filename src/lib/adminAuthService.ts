@@ -10,12 +10,18 @@ import {
   updateProfile,
   signOut,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  linkWithCredential,
+  linkWithPopup,
+  unlink,
+  updatePassword,
   onAuthStateChanged,
   type User,
+  type AuthCredential,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { AdminRecord, Workspace } from '../types';
+import { AdminRecord, Workspace, UserAuthProviders } from '../types';
 import { getOrCreateUserWorkspace } from './workspaceService';
 
 const ADMIN_SESSION_STORAGE_KEY = 'reqforge_admin_auth_session';
@@ -240,4 +246,215 @@ export function subscribeToAdminAuth(
   return subscribeToAuth((user, _workspace, adminRecord, loading) => {
     callback(user, adminRecord, loading);
   });
+}
+
+// ---------------------------------------------------------------------------
+// MULTI-PROVIDER ACCOUNT LINKING & CREDENTIAL MANAGEMENT
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns structured information about the user's linked authentication providers.
+ */
+export function getUserAuthProviders(user: User | null): UserAuthProviders {
+  if (!user) {
+    return {
+      hasGoogle: false,
+      hasPassword: false,
+      googleEmail: null,
+      email: null,
+      providers: [],
+    };
+  }
+
+  const providers = user.providerData.map((p) => p.providerId);
+  const googleProvider = user.providerData.find((p) => p.providerId === 'google.com');
+
+  return {
+    hasGoogle: providers.includes('google.com'),
+    hasPassword: providers.includes('password'),
+    googleEmail: googleProvider?.email || null,
+    email: user.email,
+    providers,
+  };
+}
+
+/**
+ * Synchronizes the user's active auth providers into the Firestore /users/{uid} document.
+ */
+export async function syncUserProfileProviders(user: User): Promise<void> {
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    const providers = user.providerData.map((p) => p.providerId);
+    await setDoc(
+      userDocRef,
+      {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || user.email?.split('@')[0] || 'User',
+        providers,
+        hasGoogle: providers.includes('google.com'),
+        hasPassword: providers.includes('password'),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Could not sync user profile providers to Firestore:', err);
+  }
+}
+
+/**
+ * Sets or updates the password for the currently authenticated user.
+ * - If the user has only Google linked (no 'password' provider), links EmailAuthProvider credential.
+ * - If the user already has 'password' provider, updates their existing password.
+ */
+export async function setPasswordForCurrentUser(password: string): Promise<User> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user is currently authenticated.');
+  }
+  if (!user.email) {
+    throw new Error('A verified email address is required to set an account password.');
+  }
+  if (password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.');
+  }
+
+  const hasPasswordProvider = user.providerData.some((p) => p.providerId === 'password');
+
+  if (hasPasswordProvider) {
+    // User already has email/password linked; update password
+    await updatePassword(user, password);
+  } else {
+    // User does not have password linked (e.g. signed up with Google); link credential
+    const credential = EmailAuthProvider.credential(user.email, password);
+    await linkWithCredential(user, credential);
+  }
+
+  // Reload current user to reflect updated providerData
+  await user.reload();
+  const refreshedUser = auth.currentUser || user;
+
+  // Sync to Firestore user profile
+  await syncUserProfileProviders(refreshedUser);
+
+  return refreshedUser;
+}
+
+/**
+ * Attaches/links a Google account to the currently authenticated user
+ * (e.g. for users who originally registered with email and password).
+ */
+export async function linkGoogleToCurrentUser(): Promise<User> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user is currently authenticated.');
+  }
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const result = await linkWithPopup(user, provider);
+  const updatedUser = result.user;
+
+  await updatedUser.reload();
+  const refreshedUser = auth.currentUser || updatedUser;
+
+  // Sync to Firestore user profile
+  await syncUserProfileProviders(refreshedUser);
+
+  return refreshedUser;
+}
+
+/**
+ * Disconnects a sign-in provider (e.g. unlinks Google or Password),
+ * enforcing that at least one sign-in provider remains active.
+ */
+export async function unlinkProviderFromCurrentUser(providerId: string): Promise<User> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user is currently authenticated.');
+  }
+
+  if (user.providerData.length <= 1) {
+    throw new Error('You cannot disconnect your only sign-in method.');
+  }
+
+  const updatedUser = await unlink(user, providerId);
+  await updatedUser.reload();
+  const refreshedUser = auth.currentUser || updatedUser;
+
+  await syncUserProfileProviders(refreshedUser);
+
+  return refreshedUser;
+}
+
+/**
+ * Links a pending Google credential to an existing email/password account
+ * when a user clicks 'Continue with Google' on an email that already exists.
+ */
+export async function linkGoogleWithPasswordOnSignIn(
+  email: string,
+  password: string,
+  pendingCredential: AuthCredential
+): Promise<{
+  user: User;
+  workspace: Workspace;
+  adminRecord: AdminRecord | null;
+}> {
+  // Sign in with email and password first
+  const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  let user = userCred.user;
+
+  // Link the pending Google credential
+  try {
+    const linkResult = await linkWithCredential(user, pendingCredential);
+    user = linkResult.user;
+    await user.reload();
+    user = auth.currentUser || user;
+  } catch (linkErr) {
+    console.warn('Failed to link pending Google credential:', linkErr);
+  }
+
+  const workspace = await getOrCreateUserWorkspace(user);
+  const adminRecord = await verifyAdminUser(user.uid);
+
+  if (adminRecord && adminRecord.enabled) {
+    saveStoredAdminSession(adminRecord);
+  }
+
+  await syncUserProfileProviders(user);
+
+  return { user, workspace, adminRecord };
+}
+
+/**
+ * Updates the display name on the Firebase Auth user and Firestore documents.
+ */
+export async function updateUserDisplayName(displayName: string): Promise<User> {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user is currently authenticated.');
+  }
+
+  const trimmed = displayName.trim();
+  await updateProfile(user, { displayName: trimmed });
+  await user.reload();
+  const refreshedUser = auth.currentUser || user;
+
+  // Update in Firestore users collection
+  try {
+    const userDocRef = doc(db, 'users', user.uid);
+    await setDoc(
+      userDocRef,
+      {
+        displayName: trimmed,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Could not update user display name in Firestore:', err);
+  }
+
+  return refreshedUser;
 }

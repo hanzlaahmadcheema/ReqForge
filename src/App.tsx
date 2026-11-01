@@ -405,6 +405,8 @@ export default function App() {
         currentUser={currentUser}
         adminRecord={currentAdmin}
         defaultClientCode={clientCode !== 'Default Client' ? clientCode : undefined}
+        onUserUpdated={(updatedUser) => setCurrentUser(updatedUser)}
+        onWorkspaceUpdated={(updatedWs) => setCurrentWorkspace(updatedWs)}
         onBackToForm={() => {
           navigateTo('/', { type: 'home' });
         }}
