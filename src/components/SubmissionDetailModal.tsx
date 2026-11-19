@@ -84,7 +84,12 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
 
   if (!isOpen || !submission) return null;
 
-  const activeSections = snapshotSections || sections;
+  // Sections for THIS submission's questionnaire first. The `sections` prop is
+  // the app-wide default questionnaire's sections (App.tsx passes the
+  // currently-loaded questionnaire), which is the wrong questionnaire for most
+  // submissions — and empty when no questionnaire is loaded — so Inspect used
+  // to show "0 / 0 answered" for every submission.
+  const activeSections = snapshotSections || questionnaire?.sections || sections;
   const answers = reconstructAnswersFromSubmission(submission);
   const currentStatus = submission.status || 'submitted';
 
@@ -729,7 +734,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         {/* Modal Footer */}
         <div className="p-4 pb-safe sm:pb-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-xs text-stone-500">
-            <span>Section {activeTab + 1} of {sections.length}</span>
+            <span>Section {activeTab + 1} of {activeSections.length}</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -743,8 +748,8 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
             </button>
             <button
               type="button"
-              disabled={activeTab === sections.length - 1}
-              onClick={() => setActiveTab((prev) => Math.min(sections.length - 1, prev + 1))}
+              disabled={activeTab === activeSections.length - 1}
+              onClick={() => setActiveTab((prev) => Math.min(activeSections.length - 1, prev + 1))}
               className="px-3 py-2 sm:py-1.5 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl hover:bg-stone-100 disabled:opacity-40 transition-all cursor-pointer min-h-[40px] sm:min-h-0 active:scale-[0.98]"
             >
               Next

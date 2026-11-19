@@ -14,6 +14,7 @@ import {
 import { db, auth } from './firebase';
 import {
   Questionnaire,
+  Section,
   Submission,
   QuestionnaireAnswers,
   QuestionnaireVersionSnapshot,
@@ -165,6 +166,39 @@ export async function seedQuestionnaireIfMissing(
 }
 
 /**
+ * Maps a raw Firestore questionnaire document to the app's Questionnaire
+ * shape. Single place where the loader picks fields — if a field is not
+ * listed here it never reaches the form, the scorer, or the admin. (The quiz
+ * flags were missing here, which is why scoring silently returned null on
+ * every public share-link submission.)
+ */
+export function normalizeQuestionnaireDoc(
+  questionnaireId: string,
+  data: Record<string, unknown>,
+  sections: Section[]
+): Questionnaire {
+  return {
+    id: questionnaireId,
+    title: (data.title as string) || 'Untitled Questionnaire',
+    description: (data.description as string) || '',
+    version: Number(data.version) || 1,
+    status: (data.status as Questionnaire['status']) || 'published',
+    sections,
+    clientId: data.clientId as string | undefined,
+    projectId: data.projectId as string | undefined,
+    isReusable: (data.isReusable as boolean) ?? true,
+    createdAt: data.createdAt as string | undefined,
+    updatedAt: data.updatedAt as string | undefined,
+    // Quiz / assessment flags — scoreQuiz gates on `quiz === true`, so
+    // these must survive the load or scoring silently returns null.
+    quiz: (data.quiz as boolean) ?? false,
+    showScoreOnSubmit: data.showScoreOnSubmit as boolean | undefined,
+    showCorrectAnswers: data.showCorrectAnswers as boolean | undefined,
+    passMark: data.passMark as number | undefined,
+  };
+}
+
+/**
  * Loads a questionnaire definition by ID or fetches the active published questionnaire.
  * Returns null if not found in Firestore.
  */
@@ -182,19 +216,7 @@ export async function getQuestionnaire(
 
         // If full sections are embedded on the questionnaire document
         if (data.sections && Array.isArray(data.sections) && data.sections.length > 0) {
-          return {
-            id: cleanId,
-            title: data.title || 'Untitled Questionnaire',
-            description: data.description || '',
-            version: Number(data.version) || 1,
-            status: data.status || 'published',
-            sections: data.sections,
-            clientId: data.clientId,
-            projectId: data.projectId,
-            isReusable: data.isReusable ?? true,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-          };
+          return normalizeQuestionnaireDoc(cleanId, data, data.sections);
         }
 
         // Try to read sections subcollection
@@ -230,19 +252,7 @@ export async function getQuestionnaire(
           }
           sectionsList.sort((a, b) => a.order - b.order);
 
-          return {
-            id: cleanId,
-            title: data.title || 'Untitled Questionnaire',
-            description: data.description || '',
-            version: Number(data.version) || 1,
-            status: data.status || 'published',
-            sections: sectionsList,
-            clientId: data.clientId,
-            projectId: data.projectId,
-            isReusable: data.isReusable ?? true,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-          };
+          return normalizeQuestionnaireDoc(cleanId, data, sectionsList);
         }
       }
       return null;
@@ -334,6 +344,12 @@ export async function publishQuestionnaire(
         status: 'published',
         publishedAt: now,
         createdAt: questionnaire.createdAt || now,
+        // Quiz flags: a version snapshot must keep quiz mode or a
+        // version-pinned public form would silently stop scoring.
+        quiz: questionnaire.quiz ?? false,
+        showScoreOnSubmit: questionnaire.showScoreOnSubmit,
+        showCorrectAnswers: questionnaire.showCorrectAnswers,
+        passMark: questionnaire.passMark,
       })
     );
   } catch (err) {
@@ -460,6 +476,11 @@ export async function duplicateQuestionnaire(
     sections: newSections,
     createdAt: now,
     updatedAt: now,
+    // Quiz flags: a duplicated quiz stays a quiz.
+    quiz: source.quiz ?? false,
+    showScoreOnSubmit: source.showScoreOnSubmit,
+    showCorrectAnswers: source.showCorrectAnswers,
+    passMark: source.passMark,
   };
 
   const docRef = doc(db, 'questionnaires', newId);
@@ -541,6 +562,29 @@ export function computeSecureDraftId(projectId: string, shareToken: string): str
 }
 
 /**
+ * A submission document that is already 'submitted' must never be reused as
+ * the target of a new draft or a new submission. Draft IDs are deterministic
+ * per (projectId, shareToken), so without this guard every re-attempt on the
+ * same share link silently overwrites the previous submission. Returns a fresh
+ * unique ID when the given one already holds a submitted record; otherwise
+ * returns the original ID unchanged (draft-resume keeps working).
+ */
+async function ensureFreshSubmissionId(
+  submissionId: string,
+  fallbackId: string
+): Promise<string> {
+  try {
+    const snap = await getDoc(doc(db, 'submissions', submissionId));
+    if (snap.exists() && (snap.data() as Submission).status === 'submitted') {
+      return fallbackId;
+    }
+  } catch {
+    // If the check fails, keep the original ID — never block a save on it.
+  }
+  return submissionId;
+}
+
+/**
  * Saves or updates a client's work-in-progress as a Draft.
  * Preserves the questionnaireVersion, linked to clientId + projectId + questionnaireId.
  * Does NOT create duplicate records if existingSubmissionId is provided or active draft is found.
@@ -578,6 +622,14 @@ export async function saveQuestionnaireDraft(
       submissionId = `draft_${projectId ? projectId.replace(/[^a-zA-Z0-9_-]/g, '_') : cleanClient}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
     }
   }
+
+  // A re-attempt on the same share link re-derives the same deterministic draft
+  // ID; if that document already holds a submitted record, start a fresh draft
+  // instead of overwriting it.
+  submissionId = await ensureFreshSubmissionId(
+    submissionId,
+    `draft_${cleanClient}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`
+  );
 
   const draftPayload: Submission = {
     id: submissionId,
@@ -751,6 +803,14 @@ export async function saveQuestionnaireSubmission(
   if (!submissionId) {
     submissionId = `${cleanClient}_${timestampStr}`;
   }
+
+  // A re-attempt on the same share link re-derives the same deterministic draft
+  // ID; if that document already holds a submitted record, use a fresh ID so
+  // each attempt is its own record instead of overwriting the previous one.
+  submissionId = await ensureFreshSubmissionId(
+    submissionId,
+    `${cleanClient}_${timestampStr}_${Math.random().toString(36).substring(2, 7)}`
+  );
 
   const submissionPayload: Submission = {
     id: submissionId,

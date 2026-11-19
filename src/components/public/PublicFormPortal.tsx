@@ -181,6 +181,12 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
               sections: snapshot.sections,
               createdAt: snapshot.createdAt,
               updatedAt: snapshot.publishedAt,
+              // Quiz flags live on the snapshot too; without them a
+              // version-pinned public form silently stops scoring.
+              quiz: snapshot.quiz ?? q.quiz ?? false,
+              showScoreOnSubmit: snapshot.showScoreOnSubmit ?? q.showScoreOnSubmit,
+              showCorrectAnswers: snapshot.showCorrectAnswers ?? q.showCorrectAnswers,
+              passMark: snapshot.passMark ?? q.passMark,
             });
             return;
           }

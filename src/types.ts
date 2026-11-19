@@ -136,6 +136,11 @@ export interface QuestionnaireVersionSnapshot {
   status: 'published';
   publishedAt: string;
   createdAt: string;
+  // Quiz / assessment flags (carried through so a version snapshot keeps quiz mode)
+  quiz?: boolean;
+  showScoreOnSubmit?: boolean;
+  showCorrectAnswers?: boolean;
+  passMark?: number;
 }
 
 export interface AnswerValue {

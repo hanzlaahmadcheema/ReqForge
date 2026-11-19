@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDocsFromServer,
   getDoc,
   setDoc,
   updateDoc,
@@ -582,7 +583,16 @@ export async function fetchSubmissions(filter?: SubmissionFilter, workspaceId?: 
     const targetWs = workspaceId || auth.currentUser?.uid;
     const colRef = collection(db, 'submissions');
     const q = targetWs ? query(colRef, where('workspaceId', '==', targetWs)) : colRef;
-    const snap = await getDocs(q);
+    // Force a server read: a plain getDocs can serve the SDK's local query
+    // snapshot, so admin Refresh kept showing the pre-submission list while a
+    // full page reload fetched fresh data. Fall back to getDocs if the server
+    // read fails (e.g. briefly offline) so Refresh never errors outright.
+    let snap;
+    try {
+      snap = await getDocsFromServer(q);
+    } catch {
+      snap = await getDocs(q);
+    }
     const items: Submission[] = [];
 
     snap.forEach((docSnap) => {
@@ -609,6 +619,11 @@ export async function fetchSubmissions(filter?: SubmissionFilter, workspaceId?: 
         isMasterDoc: d.isMasterDoc ?? false,
         createdAt: d.createdAt,
         updatedAt: d.updatedAt,
+        // Quiz score — without these the Submissions list can only ever show "—".
+        scoreEarned: d.scoreEarned,
+        scoreTotal: d.scoreTotal,
+        scorePercent: d.scorePercent,
+        passed: d.passed,
       });
     });
 
@@ -641,6 +656,10 @@ export async function fetchSubmissions(filter?: SubmissionFilter, workspaceId?: 
               formId: d.formId,
               formTitle: d.formTitle,
               isMasterDoc: false,
+              scoreEarned: d.scoreEarned,
+              scoreTotal: d.scoreTotal,
+              scorePercent: d.scorePercent,
+              passed: d.passed,
             });
           }
         });

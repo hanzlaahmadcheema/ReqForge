@@ -263,6 +263,12 @@ export default function App() {
                     sections: snapshot.sections,
                     createdAt: snapshot.createdAt,
                     updatedAt: snapshot.publishedAt,
+                    // Quiz flags live on the snapshot too; without them a
+                    // version-pinned share link silently stops scoring.
+                    quiz: snapshot.quiz ?? loadedQ.quiz ?? false,
+                    showScoreOnSubmit: snapshot.showScoreOnSubmit ?? loadedQ.showScoreOnSubmit,
+                    showCorrectAnswers: snapshot.showCorrectAnswers ?? loadedQ.showCorrectAnswers,
+                    passMark: snapshot.passMark ?? loadedQ.passMark,
                   });
                   return;
                 }
