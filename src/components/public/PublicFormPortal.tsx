@@ -48,6 +48,8 @@ import { SuccessView } from '../SuccessView';
 import { scoreQuiz, type QuizResult } from '../../lib/quizScoring';
 import {
   getQuizProgressKey,
+  loadQuizProgress,
+  clearQuizProgress,
   mergeQuizProgress,
 } from '../../lib/quizLocalStorage';
 
@@ -386,6 +388,31 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     setSubmittedResult(null);
   };
 
+  // Restore a completed anonymous quiz result after a refresh: the score
+  // screen lives in this browser's local storage only, so a reload must show
+  // it again instead of dropping back to the mode picker. Runs once, when
+  // the questionnaire finishes loading.
+  useEffect(() => {
+    if (!questionnaire || questionnaire.quiz !== true) return;
+    if (!session) return;
+    if (submittedResult) return;
+    const progress = loadQuizProgress(
+      getQuizProgressKey(session.questionnaireId, session.projectId)
+    );
+    if (progress?.completedResult) {
+      setSubmittedResult({
+        docId: `local_restored_${Date.now().toString(36)}`,
+        masterDocId: session.clientName || 'Client',
+        answers: progress.answers || {},
+        additionalRequirements: '',
+        quizResult: progress.completedResult,
+      });
+    }
+    // Deliberately not depending on submittedResult: after a retake the
+    // saved result is cleared, and this must not restore it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionnaire, session]);
+
   // ---------------------------------------------------------------------------
   // 1. Loading Metadata
   // ---------------------------------------------------------------------------
@@ -527,6 +554,16 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
             quizResult={submittedResult.quizResult || null}
             questionnaire={questionnaire}
             onReset={() => {
+              if (questionnaire?.quiz === true) {
+                // Retake: drop the locally saved score and show the form
+                // again at the mode picker (do not lock the session — the
+                // respondent may take the quiz again right away).
+                clearQuizProgress(
+                  getQuizProgressKey(session!.questionnaireId, session!.projectId)
+                );
+                setSubmittedResult(null);
+                return;
+              }
               // Post-submission editing is prohibited
               handleLockSession();
             }}

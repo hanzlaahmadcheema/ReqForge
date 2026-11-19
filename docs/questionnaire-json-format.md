@@ -201,6 +201,8 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
 
 **Anonymity — quizzes are never stored:** quiz responses are never saved to the database — no submissions, no drafts, no mirrors. The score is calculated in the respondent's browser only, and the only place anything is kept is that browser's local storage (so a refresh can resume progress). The quiz form says this plainly, so respondents know they are anonymous. Admins do **not** see quiz scores or answers anywhere — there is nothing to list, because nothing was ever sent. Requirements questionnaires are unaffected: they still save submissions and drafts exactly as before.
 
+**Progress kept in the browser:** a refresh resumes exactly where the respondent left off — answers, the chosen answer mode, and the current question. In one-at-a-time mode a checked question keeps its correct/incorrect feedback and explanation (the answer stays locked). A finished quiz keeps its score screen on refresh, with a "Take the quiz again" action to start over. Reset (with a confirmation dialog) clears all answers and the saved progress and returns to the mode choice.
+
 ```json
 {
   "questionnaire": {

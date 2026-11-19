@@ -361,7 +361,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 active:scale-[0.98] text-stone-700 font-medium text-sm transition-all min-h-[48px] cursor-pointer"
         >
           <RotateCcw className="w-4 h-4" />
-          <span>Fill Another Form</span>
+          <span>{isQuiz ? 'Take the quiz again' : 'Fill Another Form'}</span>
         </button>
       </div>
     </div>

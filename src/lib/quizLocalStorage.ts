@@ -12,6 +12,7 @@
  */
 
 import type { QuestionnaireAnswers } from '../types';
+import type { QuizQuestionResult, QuizResult } from './quizScoring';
 
 export type QuizAnswerMode = 'all' | 'one';
 
@@ -21,6 +22,22 @@ export interface QuizProgress {
   mode: QuizAnswerMode | null;
   /** Current question index in one-at-a-time mode. */
   oneIndex: number;
+  /**
+   * Per-question instant-check results in one-at-a-time mode
+   * (questionId -> check result). Restored on refresh so a checked
+   * question still shows its correct/incorrect feedback and explanation
+   * instead of offering "Check answer" again.
+   */
+  checked: Record<string, QuizQuestionResult>;
+  /**
+   * Completed attempt: the final score + per-question review. Set at
+   * submit time and restored on refresh so the score screen survives a
+   * reload. Null while the attempt is still in progress. Cleared by
+   * retake / Reset.
+   */
+  completedResult: QuizResult | null;
+  /** When the attempt was completed (ISO timestamp), or null if in progress. */
+  completedAt: string | null;
   updatedAt: string;
 }
 
@@ -36,6 +53,53 @@ export function getQuizProgressKey(
   return `${KEY_PREFIX}${cleanQ}_${cleanP}`;
 }
 
+function safeParseChecked(raw: unknown): Record<string, QuizQuestionResult> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, QuizQuestionResult> = {};
+  for (const [questionId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (
+      typeof questionId === 'string' &&
+      entry &&
+      typeof entry === 'object' &&
+      typeof (entry as { questionId?: unknown }).questionId === 'string' &&
+      typeof (entry as { correct?: unknown }).correct === 'boolean' &&
+      typeof (entry as { earned?: unknown }).earned === 'number' &&
+      typeof (entry as { points?: unknown }).points === 'number'
+    ) {
+      out[questionId] = entry as QuizQuestionResult;
+    }
+  }
+  return out;
+}
+
+function safeParseCompletedResult(raw: unknown): QuizResult | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Partial<QuizResult>;
+  if (
+    typeof r.earned !== 'number' ||
+    typeof r.total !== 'number' ||
+    typeof r.percent !== 'number' ||
+    typeof r.passed !== 'boolean' ||
+    !Array.isArray(r.perQuestion)
+  ) {
+    return null;
+  }
+  return {
+    earned: r.earned,
+    total: r.total,
+    percent: r.percent,
+    passed: r.passed,
+    passMark: typeof r.passMark === 'number' ? r.passMark : undefined,
+    perQuestion: (r.perQuestion as unknown[]).filter(
+      (pq): pq is QuizQuestionResult =>
+        !!pq &&
+        typeof pq === 'object' &&
+        typeof (pq as { questionId?: unknown }).questionId === 'string' &&
+        typeof (pq as { correct?: unknown }).correct === 'boolean'
+    ) as QuizQuestionResult[],
+  };
+}
+
 function safeParse(raw: string | null): QuizProgress | null {
   if (!raw) return null;
   try {
@@ -49,6 +113,11 @@ function safeParse(raw: string | null): QuizProgress | null {
         typeof parsed.oneIndex === 'number' && parsed.oneIndex >= 0
           ? Math.floor(parsed.oneIndex)
           : 0,
+      // Older stored progress has no checked/completed fields — default them.
+      checked: safeParseChecked(parsed.checked),
+      completedResult: safeParseCompletedResult(parsed.completedResult),
+      completedAt:
+        typeof parsed.completedAt === 'string' ? parsed.completedAt : null,
       updatedAt:
         typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     };
@@ -84,16 +153,20 @@ export function mergeQuizProgress(key: string, partial: Partial<QuizProgress>): 
     answers: {},
     mode: null as QuizAnswerMode | null,
     oneIndex: 0,
+    checked: {} as Record<string, QuizQuestionResult>,
+    completedResult: null as QuizResult | null,
+    completedAt: null as string | null,
     updatedAt: new Date().toISOString(),
   };
   saveQuizProgress(key, {
     ...existing,
     ...partial,
     answers: partial.answers ?? existing.answers,
+    checked: partial.checked ?? existing.checked,
   });
 }
 
-/** Deletes a quiz attempt's local progress (called on submit, so the next attempt starts fresh). */
+/** Deletes a quiz attempt's local progress (called on retake / Reset, so the next attempt starts fresh). */
 export function clearQuizProgress(key: string): void {
   try {
     window.localStorage.removeItem(key);

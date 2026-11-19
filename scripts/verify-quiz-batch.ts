@@ -3,7 +3,9 @@
  *  1. separate Quizzes section (admin),
  *  2. respondent answer modes (whole form / one at a time),
  *  3. anonymous quizzes (no Firestore writes; localStorage only),
- *  4. questionnaire dropdown disambiguation.
+ *  4. questionnaire dropdown disambiguation,
+ *  5. quiz progress-saving gaps fixed: checked state survives refresh,
+ *     finished score screen survives refresh, Reset works (in-app confirm).
  *
  * Pure-logic + static source checks. No network, no Firestore, no live site.
  * Run: npx tsx scripts/verify-quiz-batch.ts
@@ -211,12 +213,49 @@ console.log('\n[quizLocalStorage]');
   check('key contains questionnaire + project ids', key.includes('q_test') && key.includes('proj_1'), key);
   check('key sanitizes unsafe chars', getQuizProgressKey('q a/b', 'p:x') === 'reqforge_quiz_progress_q_a_b_p_x');
   check('load of missing key returns null', loadQuizProgress(key) === null);
-  saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 2, updatedAt: '' });
+  saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 2, checked: {}, completedResult: null, completedAt: null, updatedAt: '' });
   const loaded = loadQuizProgress(key);
   check('save/load round-trips answers + mode + index', !!loaded && loaded.mode === 'one' && loaded.oneIndex === 2 && loaded.answers.q1?.value === '4');
+  check('fresh progress defaults checked empty + no completed result', !!loaded && Object.keys(loaded.checked).length === 0 && loaded.completedResult === null && loaded.completedAt === null);
   mergeQuizProgress(key, { answers: oneWrong });
   const merged = loadQuizProgress(key);
   check('merge updates answers but keeps mode + index', !!merged && merged.mode === 'one' && merged.oneIndex === 2 && merged.answers.q1?.value === '3');
+  check('merge keeps checked + completed result when updating answers', (() => {
+    const r1 = scoreQuestion(quiz.sections[0].questions[0], { value: '4' });
+    const done = scoreQuiz(quiz, allCorrect)!;
+    saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 1, checked: { q1: r1 }, completedResult: done, completedAt: '2026-11-19T00:00:00.000Z', updatedAt: '' });
+    mergeQuizProgress(key, { answers: oneWrong });
+    const m = loadQuizProgress(key);
+    return !!m && m.checked.q1?.correct === true && m.checked.q1?.earned === 2 && m.completedResult?.earned === 5 && m.completedResult?.passed === true;
+  })());
+  check('checked-state round-trip: q1 check result survives save/load', (() => {
+    const r1 = scoreQuestion(quiz.sections[0].questions[0], { value: '4' });
+    saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 1, checked: { q1: r1 }, completedResult: null, completedAt: null, updatedAt: '' });
+    const l = loadQuizProgress(key);
+    return !!l && l.checked.q1?.correct === true && l.checked.q1?.earned === 2 && l.checked.q1?.points === 2 && l.checked.q1?.explanation === '2 + 2 = 4.';
+  })());
+  check('completed-result round-trip: score + review survive save/load', (() => {
+    const done = scoreQuiz(quiz, allCorrect)!;
+    saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 4, checked: {}, completedResult: done, completedAt: '2026-11-19T00:00:00.000Z', updatedAt: '' });
+    const l = loadQuizProgress(key);
+    return !!l && l.completedResult?.earned === 5 && l.completedResult?.total === 5 && l.completedResult?.percent === 100 && l.completedResult?.passed === true && l.completedResult?.perQuestion.length === 3 && l.completedAt === '2026-11-19T00:00:00.000Z';
+  })());
+  check('old-format progress (no checked/completed fields) loads with defaults', (() => {
+    store.set(key, JSON.stringify({ answers: allCorrect, mode: 'one', oneIndex: 1, updatedAt: '' }));
+    const l = loadQuizProgress(key);
+    return !!l && Object.keys(l.checked).length === 0 && l.completedResult === null && l.completedAt === null;
+  })());
+  check('corrupt checked entries are dropped, valid ones kept', (() => {
+    const r1 = scoreQuestion(quiz.sections[0].questions[0], { value: '4' });
+    store.set(key, JSON.stringify({ answers: {}, mode: 'one', oneIndex: 0, checked: { q1: r1, q2: 'garbage', q3: { correct: 'yes' } }, completedResult: null, completedAt: null, updatedAt: '' }));
+    const l = loadQuizProgress(key);
+    return !!l && Object.keys(l.checked).length === 1 && l.checked.q1?.correct === true;
+  })());
+  check('corrupt completed result loads as null', (() => {
+    store.set(key, JSON.stringify({ answers: {}, mode: 'one', oneIndex: 0, checked: {}, completedResult: { earned: 'x', total: 5 }, completedAt: null, updatedAt: '' }));
+    const l = loadQuizProgress(key);
+    return !!l && l.completedResult === null;
+  })());
   clearQuizProgress(key);
   check('clear removes progress', loadQuizProgress(key) === null);
   store.set(key, '{not json');
@@ -285,9 +324,10 @@ console.log('\n[static audit: anonymity]');
   check('Portal handleSaveDraft: quiz branch returns before saveQuestionnaireDraft', guardBeforeSave(portal, 'const handleSaveDraft', 'saveQuestionnaireDraft('));
   check('Portal skips server draft restore for quizzes', portal.includes('if (!q.quiz && session!.projectId'));
   check('Form draft-restore effect skips Firestore for quizzes', form.includes('if (isQuiz) {') && form.indexOf('if (isQuiz) {') < form.indexOf('fetchDraftSubmission('));
-  check('Form quiz submit clears local progress (no server write)', form.includes('clearQuizProgress(quizProgressKey)') && form.includes('if (isQuiz) {'));
+  check('Form quiz submit persists completed result locally (no server write)', form.includes('completedResult: result') && form.includes('saveQuizProgress(quizProgressKey, {'));
   check('Form never calls saveQuestionnaireSubmission', !form.includes('saveQuestionnaireSubmission'));
   check('Form persists quiz progress via localStorage helper', form.includes('saveQuizProgress(quizProgressKey'));
+  check('Form has no native window.confirm (in-app reset dialog instead)', !form.includes('window.confirm(') && form.includes('showResetConfirm'));
   check('SuccessView hides Firestore record card for quizzes', src('src/components/SuccessView.tsx').includes('{!isQuiz && ('));
   check('SuccessView quiz copy says anonymous, not saved', src('src/components/SuccessView.tsx').includes('completely anonymous'));
   check('ReviewSummary has quiz mode (no contact fields / Firestore copy)', src('src/components/ReviewSummary.tsx').includes('isQuiz') && src('src/components/ReviewSummary.tsx').includes('Submit Quiz & See Score'));
@@ -344,6 +384,37 @@ console.log('\n[dropdown labels]');
     check(`${f}: no bare title/version options remain`, !code.includes('{q.title} (v{q.version})'));
     check(`${f}: uses formatQuestionnaireOptionLabel`, code.includes('formatQuestionnaireOptionLabel(q)'));
   }
+}
+
+// ---------------------------------------------------------------------------
+// 8. Progress-saving gaps fixed (checked state / finished result / Reset)
+// ---------------------------------------------------------------------------
+console.log('\n[progress-saving gaps]');
+{
+  const form = src('src/components/QuestionnaireForm.tsx');
+  const app = src('src/App.tsx');
+  const portal = src('src/components/public/PublicFormPortal.tsx');
+  const success = src('src/components/SuccessView.tsx');
+
+  // Gap 1: checked state survives refresh.
+  check('checked results kept in a map (restored on load)', form.includes('checkedResults') && form.includes('restoredQuizProgress?.checked'));
+  check('check handler records the result in the map', form.includes('setCheckedResults((prev) => ({ ...prev, [oneQuestion.id]: result }))'));
+  check('auto-save persists the checked map', form.includes('checked: checkedResults'));
+  check('checked answers are locked against later edits', form.includes('checkedResults[questionId]'));
+  check('current question check state restored from the map on mount', form.includes('restoredQuizProgress.checked?.[q.id]'));
+
+  // Gap 2: finished result survives refresh; retake clears it.
+  check('submit persists the completed result locally', form.includes('completedResult: result'));
+  check('App restores a completed quiz result on load', app.includes('loadQuizProgress(') && app.includes('progress?.completedResult'));
+  check('Portal restores a completed quiz result on load', portal.includes('loadQuizProgress(') && portal.includes('progress?.completedResult'));
+  check('App retake clears the saved quiz result', app.includes('Retake: drop the locally saved score') && app.includes('clearQuizProgress('));
+  check('Portal retake clears the saved result without locking the session', portal.includes('Retake: drop the locally saved score') && portal.includes('clearQuizProgress('));
+  check('score screen offers "Take the quiz again" for quizzes', success.includes('Take the quiz again'));
+
+  // Gap 3: Reset works in both modes (in-app confirm, clears everything).
+  check('Reset opens an in-app confirmation dialog', form.includes('setShowResetConfirm(true)') && form.includes('Reset this {isQuiz ?'));
+  check('Reset confirm clears answers + checked map + completed result', form.includes('setCheckedResults({})') && form.includes('setCompletedQuizResult(null)'));
+  check('Reset confirm clears local progress', form.includes('handleConfirmClearForm') && form.includes('clearQuizProgress(quizProgressKey)'));
 }
 
 // ---------------------------------------------------------------------------

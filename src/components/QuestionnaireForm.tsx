@@ -120,9 +120,37 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   // One-at-a-time mode state: current question index, whether it was checked,
   // and its per-question result.
   const [oneIndex, setOneIndex] = useState<number>(restoredQuizProgress?.oneIndex ?? 0);
-  const [oneChecked, setOneChecked] = useState<boolean>(false);
-  const [oneResult, setOneResult] = useState<QuizQuestionResult | null>(null);
+  // Per-question instant-check results (questionId -> check result). Restored
+  // from local storage so a refresh keeps the feedback instead of offering
+  // "Check answer" again for a question that was already checked.
+  const [checkedResults, setCheckedResults] = useState<Record<string, QuizQuestionResult>>(
+    restoredQuizProgress?.checked ?? {}
+  );
+  // The current question's check state, restored from the checked map above.
+  // Computed once on mount: the question at the restored index may already
+  // have been checked before a refresh.
+  const initialOneCheck = (() => {
+    if (!isQuiz || !restoredQuizProgress) return { checked: false, result: null as QuizQuestionResult | null };
+    const restoredAnswers = restoredQuizProgress.answers ?? {};
+    const visible = (questionnaire.sections || [])
+      .filter((s) => s.enabled !== false)
+      .flatMap((sec) => (sec.questions || []).filter((q) => isQuestionVisible(q, restoredAnswers)));
+    if (visible.length === 0) return { checked: false, result: null as QuizQuestionResult | null };
+    const idx = Math.min(restoredQuizProgress.oneIndex ?? 0, visible.length - 1);
+    const q = visible[idx];
+    const res = q ? restoredQuizProgress.checked?.[q.id] ?? null : null;
+    return { checked: !!res, result: res };
+  })();
+  const [oneChecked, setOneChecked] = useState<boolean>(initialOneCheck.checked);
+  const [oneResult, setOneResult] = useState<QuizQuestionResult | null>(initialOneCheck.result);
   const [oneHint, setOneHint] = useState<string | null>(null);
+  // Completed quiz result (score + review) for this attempt. Set at submit
+  // time and persisted to local storage so a refresh restores the score
+  // screen instead of dropping back to the mode picker.
+  const [completedQuizResult, setCompletedQuizResult] = useState<QuizResult | null>(null);
+  // In-app Reset confirmation dialog (a native window.confirm is silently
+  // dismissed by automated browsers, which made Reset look broken).
+  const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
 
   // Draft persistence state
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -205,15 +233,21 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   }, [projectId, clientId, questionnaire.id, initialClientCode, isPreview, isQuiz, restoredQuizProgress]);
 
   // Quiz progress auto-save: local storage only, never the server.
+  // Persists answers, mode, index, per-question check results and the
+  // completed score, so a refresh resumes exactly where the respondent left
+  // off — including a finished score screen.
   useEffect(() => {
     if (!isQuiz || isPreview) return;
     saveQuizProgress(quizProgressKey, {
       answers,
       mode: quizMode,
       oneIndex,
+      checked: checkedResults,
+      completedResult: completedQuizResult,
+      completedAt: completedQuizResult ? new Date().toISOString() : null,
       updatedAt: new Date().toISOString(),
     });
-  }, [answers, quizMode, oneIndex, isQuiz, isPreview, quizProgressKey]);
+  }, [answers, quizMode, oneIndex, checkedResults, completedQuizResult, isQuiz, isPreview, quizProgressKey]);
 
   // Manual Draft Save Handler
   const handleSaveDraft = async () => {
@@ -229,6 +263,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         answers,
         mode: quizMode,
         oneIndex,
+        checked: checkedResults,
+        completedResult: completedQuizResult,
+        completedAt: completedQuizResult ? new Date().toISOString() : null,
         updatedAt: new Date().toISOString(),
       });
       setDraftSaveSuccess(true);
@@ -280,6 +317,11 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   };
 
   const handleAnswerChange = (questionId: string, answer: AnswerValue) => {
+    // In one-at-a-time mode a checked question is locked: its answer cannot
+    // be changed after the instant feedback was shown, or the stored check
+    // result would no longer match the answer.
+    if (isQuiz && quizMode === 'one' && checkedResults[questionId]) return;
+
     setAnswers((prev) => ({
       ...prev,
       [questionId]: answer,
@@ -377,21 +419,30 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   };
 
   const handleClearForm = () => {
-    if (window.confirm('Reset all answers in this form?')) {
-      setAnswers({});
-      setValidationErrors({});
-      setAdditionalRequirements('');
-      setCurrentSectionIndex(0);
-      setPreviewQuizResult(null);
-      if (isQuiz) {
-        // Start the quiz over from the mode choice; drop local progress too.
-        clearQuizProgress(quizProgressKey);
-        setQuizMode(null);
-        setOneIndex(0);
-        setOneChecked(false);
-        setOneResult(null);
-        setOneHint(null);
-      }
+    // Opens the in-app confirmation dialog (see the modal at the bottom of
+    // this component). A native window.confirm is silently dismissed by
+    // automated browsers, which made Reset look broken.
+    setShowResetConfirm(true);
+  };
+
+  const handleConfirmClearForm = () => {
+    setShowResetConfirm(false);
+    setAnswers({});
+    setValidationErrors({});
+    setAdditionalRequirements('');
+    setCurrentSectionIndex(0);
+    setPreviewQuizResult(null);
+    if (isQuiz) {
+      // Start the quiz over from the mode choice; drop local progress too —
+      // answers, per-question check results and any completed score.
+      clearQuizProgress(quizProgressKey);
+      setQuizMode(null);
+      setOneIndex(0);
+      setOneChecked(false);
+      setOneResult(null);
+      setOneHint(null);
+      setCheckedResults({});
+      setCompletedQuizResult(null);
     }
   };
 
@@ -404,9 +455,22 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     }
 
     if (isQuiz) {
-      // A submitted quiz attempt is done: clear local progress so the next
-      // attempt starts fresh. The score is computed, never stored.
-      clearQuizProgress(quizProgressKey);
+      // A submitted quiz attempt is done: persist the completed result
+      // (score + per-question review) in this browser's local storage so a
+      // refresh restores the score screen instead of dropping back to the
+      // mode picker. The score is computed, never stored on any server.
+      // Retake / Reset clears it again (see handleConfirmClearForm).
+      const result = scoreQuiz(questionnaire, answers);
+      setCompletedQuizResult(result);
+      saveQuizProgress(quizProgressKey, {
+        answers,
+        mode: quizMode,
+        oneIndex,
+        checked: checkedResults,
+        completedResult: result,
+        completedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     }
 
     if (onSubmit) {
@@ -435,7 +499,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const isLastOneQuestion = safeOneIndex >= visibleQuizQuestions.length - 1;
 
   // Check the current question instantly: lock the answer and show
-  // correct/incorrect + explanation right away.
+  // correct/incorrect + explanation right away. The check result is kept in
+  // the checked map so a refresh restores the feedback for this question.
   const handleOneCheck = () => {
     if (!oneQuestion) return;
     if (!isQuestionAnswered(oneQuestion.id)) {
@@ -443,8 +508,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       return;
     }
     setOneHint(null);
-    setOneResult(scoreQuestion(oneQuestion, answers[oneQuestion.id]));
+    const result = scoreQuestion(oneQuestion, answers[oneQuestion.id]);
+    setOneResult(result);
     setOneChecked(true);
+    setCheckedResults((prev) => ({ ...prev, [oneQuestion.id]: result }));
   };
 
   // Move on: next question, or submit for the final score on the last one.
@@ -1057,6 +1124,42 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           )}
         </div>
       </footer>
+      )}
+      {/* RESET CONFIRMATION DIALOG — in-app (not window.confirm, which
+          automated browsers dismiss silently). Clears every answer and all
+          saved progress for this quiz, and returns to the mode picker. */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-stone-900 text-center">
+              Reset this {isQuiz ? 'quiz' : 'form'}?
+            </h3>
+            <p className="text-xs text-stone-600 leading-relaxed text-center">
+              {isQuiz
+                ? 'This clears all your answers, your checked feedback and your saved score, and takes you back to the start. Your progress kept in this browser will be deleted.'
+                : 'This clears all the answers in this form.'}
+            </p>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition cursor-pointer min-h-[44px]"
+              >
+                Keep my answers
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearForm}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition cursor-pointer min-h-[44px]"
+              >
+                Clear everything
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

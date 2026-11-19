@@ -24,6 +24,8 @@ import { PublicFormPortal } from './components/public/PublicFormPortal';
 import { scoreQuiz, type QuizResult } from './lib/quizScoring';
 import {
   getQuizProgressKey,
+  loadQuizProgress,
+  clearQuizProgress,
   mergeQuizProgress,
 } from './lib/quizLocalStorage';
 
@@ -297,6 +299,31 @@ export default function App() {
     }
   }, []);
 
+  // Restore a completed anonymous quiz result after a refresh: the score
+  // screen lives in this browser's local storage only, so a reload must show
+  // it again instead of dropping back to the mode picker. Runs once, when
+  // the questionnaire finishes loading for a share link.
+  useEffect(() => {
+    if (route.type !== 'projectShare') return;
+    if (!questionnaire || questionnaire.quiz !== true) return;
+    if (submittedResult) return;
+    const progress = loadQuizProgress(
+      getQuizProgressKey(questionnaire.id, projectId || activeProject?.id)
+    );
+    if (progress?.completedResult) {
+      setSubmittedResult({
+        docId: `local_restored_${Date.now().toString(36)}`,
+        masterDocId: activeClient?.name || clientCode,
+        answers: progress.answers || {},
+        additionalRequirements: '',
+        quizResult: progress.completedResult,
+      });
+    }
+    // Deliberately not depending on submittedResult: after a retake the
+    // saved result is cleared, and this must not restore it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionnaire, projectId, activeProject?.id, route.type]);
+
   // Generic Submit handler
   const handleSubmit = async (payload: {
     clientCode: string;
@@ -539,6 +566,13 @@ export default function App() {
             quizResult={submittedResult.quizResult || null}
             questionnaire={questionnaire}
             onReset={() => {
+              if (questionnaire?.quiz === true) {
+                // Retake: drop the locally saved score so the next attempt
+                // starts at the mode picker instead of restoring the old result.
+                clearQuizProgress(
+                  getQuizProgressKey(questionnaire.id, projectId || activeProject?.id)
+                );
+              }
               setSubmittedResult(null);
             }}
           />
