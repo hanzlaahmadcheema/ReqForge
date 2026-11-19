@@ -22,6 +22,10 @@ import { QuestionnaireForm } from './components/QuestionnaireForm';
 import { GuestHomePage } from './components/public/GuestHomePage';
 import { PublicFormPortal } from './components/public/PublicFormPortal';
 import { scoreQuiz, type QuizResult } from './lib/quizScoring';
+import {
+  getQuizProgressKey,
+  mergeQuizProgress,
+} from './lib/quizLocalStorage';
 
 const STORAGE_KEY = 'client_requirements_draft_v1';
 
@@ -312,6 +316,26 @@ export default function App() {
       // Quiz scoring (computed at submit time only; null for non-quiz questionnaires)
       const quizResult = questionnaire ? scoreQuiz(questionnaire, payload.answers) : null;
 
+      // ANONYMOUS QUIZ: never write to Firestore — no submission, no draft,
+      // no mirror. The score is computed in the browser only and shown to
+      // the respondent; nothing leaves this device.
+      if (questionnaire?.quiz === true) {
+        setSubmittedResult({
+          docId: `local_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
+          masterDocId: payload.clientCode.trim() || activeClient?.name || clientCode,
+          answers: payload.answers,
+          additionalRequirements: payload.additionalRequirements,
+          quizResult,
+        });
+
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          // Ignore
+        }
+        return;
+      }
+
       const result = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId,
         workspaceId: activeProject?.workspaceId || undefined,
@@ -369,6 +393,16 @@ export default function App() {
   }) => {
     const qId = questionnaire?.id || 'general';
     const qVer = questionnaire?.version || 1;
+
+    // ANONYMOUS QUIZ: drafts live in this browser's local storage only —
+    // never Firestore. (The form normally handles this itself; this guard
+    // covers any other caller.)
+    if (questionnaire?.quiz === true) {
+      mergeQuizProgress(getQuizProgressKey(qId, projectId || activeProject?.id), {
+        answers: payload.answers,
+      });
+      return `local_${Date.now().toString(36)}`;
+    }
 
     const res = await saveQuestionnaireDraft({
       existingSubmissionId: payload.existingDraftId,

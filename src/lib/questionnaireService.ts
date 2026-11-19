@@ -199,6 +199,28 @@ export function normalizeQuestionnaireDoc(
 }
 
 /**
+ * Label for a questionnaire in an admin <select>. Includes the version and
+ * the creation date so identically-titled questionnaires (e.g. two
+ * "General Knowledge Quiz (v1)" entries) can be told apart at a glance.
+ */
+export function formatQuestionnaireOptionLabel(q: {
+  title: string;
+  version?: number;
+  createdAt?: string;
+}): string {
+  const created = q.createdAt ? new Date(q.createdAt) : null;
+  const datePart =
+    created && !Number.isNaN(created.getTime())
+      ? created.toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        })
+      : 'no date';
+  return `${q.title} (v${q.version ?? 1} · ${datePart})`;
+}
+
+/**
  * Loads a questionnaire definition by ID or fetches the active published questionnaire.
  * Returns null if not found in Firestore.
  */

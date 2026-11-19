@@ -46,6 +46,10 @@ import {
 import { QuestionnaireForm } from '../QuestionnaireForm';
 import { SuccessView } from '../SuccessView';
 import { scoreQuiz, type QuizResult } from '../../lib/quizScoring';
+import {
+  getQuizProgressKey,
+  mergeQuizProgress,
+} from '../../lib/quizLocalStorage';
 
 interface PublicFormPortalProps {
   publicFormId: string;
@@ -196,8 +200,10 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
           setQuestionnaire(q);
         }
 
-        // Check for existing draft
-        if (session!.projectId && session!.shareToken) {
+        // Check for existing draft — requirements questionnaires only.
+        // Quizzes are anonymous: no server draft exists, and progress lives
+        // in the respondent's browser local storage (restored by the form).
+        if (!q.quiz && session!.projectId && session!.shareToken) {
           try {
             const draft = await fetchDraftSubmission({
               projectId: session!.projectId,
@@ -268,6 +274,17 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
   }) => {
     if (!session || !questionnaire) return '';
 
+    // ANONYMOUS QUIZ: drafts live in this browser's local storage only —
+    // never Firestore. (The form normally handles this itself; this guard
+    // covers any other caller.)
+    if (questionnaire.quiz === true) {
+      mergeQuizProgress(
+        getQuizProgressKey(session.questionnaireId, session.projectId),
+        { answers: payload.answers }
+      );
+      return `local_${Date.now().toString(36)}`;
+    }
+
     const res = await saveQuestionnaireDraft({
       existingSubmissionId: payload.existingDraftId || existingDraftId,
       workspaceId: session.workspaceId,
@@ -308,6 +325,20 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     try {
       // Quiz scoring (computed at submit time only; null for non-quiz questionnaires)
       const quizResult = questionnaire ? scoreQuiz(questionnaire, payload.answers) : null;
+
+      // ANONYMOUS QUIZ: never write to Firestore — no submission, no draft,
+      // no mirror. The score is computed in the browser only and shown to
+      // the respondent; nothing leaves this device.
+      if (questionnaire.quiz === true) {
+        setSubmittedResult({
+          docId: `local_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
+          masterDocId: payload.clientCode || session.clientName || 'Client',
+          answers: payload.answers,
+          additionalRequirements: payload.additionalRequirements,
+          quizResult,
+        });
+        return;
+      }
 
       const res = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId || existingDraftId,
@@ -720,7 +751,9 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
 
       {/* Footer */}
       <footer className="pb-8 pt-4 text-center text-xs text-stone-400">
-        ReqForge Client Questionnaire &bull; Responses saved securely to encrypted project record
+        {questionnaire?.quiz === true
+          ? 'Anonymous quiz — nothing you answer is saved or sent anywhere'
+          : 'ReqForge Client Questionnaire • Responses saved securely to encrypted project record'}
       </footer>
     </div>
   );

@@ -40,6 +40,7 @@ import { AiWorkflowGuideModal } from '../common/AiWorkflowGuideModal';
 import {
   REQFORGE_AI_AGENT_PROMPT,
   REQFORGE_CANONICAL_TEMPLATE_JSON,
+  REQFORGE_QUIZ_TEMPLATE_JSON,
 } from '../../lib/aiWorkflowConstants';
 import { copyToClipboard } from '../../lib/clipboardUtils';
 
@@ -49,6 +50,11 @@ interface QuestionnairesViewProps {
   clients: Client[];
   onSelectProject: (projectId: string) => void;
   onRefresh?: () => Promise<void> | void;
+  /**
+   * 'questionnaires' lists requirements questionnaires only; 'quizzes' lists
+   * quiz questionnaires only. Quizzes never mix into the questionnaires list.
+   */
+  variant?: 'questionnaires' | 'quizzes';
 }
 
 export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
@@ -57,7 +63,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
   clients,
   onSelectProject,
   onRefresh,
+  variant = 'questionnaires',
 }) => {
+  const isQuizVariant = variant === 'quizzes';
   const [questionnaires, setQuestionnaires] = useState<Questionnaire[]>(initialQuestionnaires);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<Questionnaire | null>(null);
   const [builderQuestionnaire, setBuilderQuestionnaire] = useState<Questionnaire | null>(null);
@@ -93,6 +101,56 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
   const handleCreateNew = () => {
     const now = new Date().toISOString();
     const newId = `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    // Quizzes created from the Quizzes section start in quiz mode, with a
+    // sample scored question so the builder's quiz UI is visible at once.
+    if (isQuizVariant) {
+      const blankQuiz: Questionnaire = {
+        id: newId,
+        title: 'New Quiz',
+        description: 'A short scored quiz. Mark the correct options to enable scoring.',
+        version: 1,
+        status: 'draft',
+        createdAt: now,
+        updatedAt: now,
+        quiz: true,
+        showScoreOnSubmit: true,
+        showCorrectAnswers: true,
+        passMark: 70,
+        sections: [
+          {
+            id: `sec_${Date.now()}_1`,
+            questionnaireId: newId,
+            title: 'Section 1',
+            description: 'Quiz questions',
+            order: 1,
+            enabled: true,
+            questions: [
+              {
+                id: `q_${Date.now()}_1_1`,
+                sectionId: `sec_${Date.now()}_1`,
+                text: 'What is 2 + 2?',
+                type: 'single_choice',
+                required: true,
+                enabled: true,
+                order: 1,
+                points: 2,
+                explanation: '2 + 2 = 4.',
+                options: [
+                  { label: '3', value: '3' },
+                  { label: '4', value: '4', correct: true },
+                  { label: '5', value: '5' },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      setBuilderQuestionnaire(blankQuiz);
+      return;
+    }
+
     const blankQuestionnaire: Questionnaire = {
       id: newId,
       title: 'New Requirements Questionnaire',
@@ -223,6 +281,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
   // FILTERED QUESTIONNAIRES
   // ---------------------------------------------------------------------------
   const filteredQuestionnaires = questionnaires.filter((q) => {
+    // Separation: the Quizzes section shows quizzes only; the
+    // Questionnaires section shows requirements questionnaires only.
+    const matchesVariant = isQuizVariant ? q.quiz === true : q.quiz !== true;
     const matchesSearch =
       q.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (q.description && q.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -231,7 +292,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
     const matchesStatus =
       statusFilter === 'all' || q.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesVariant && matchesSearch && matchesStatus;
   });
 
   // ---------------------------------------------------------------------------
@@ -259,7 +320,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-white border border-stone-200 px-3 py-1.5 rounded-lg shadow-2xs cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to All Questionnaires</span>
+            <span>Back to All {isQuizVariant ? 'Quizzes' : 'Questionnaires'}</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -371,10 +432,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
         <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-2xs space-y-4">
           <div>
             <h3 className="text-base font-bold text-stone-900">
-              Projects Using this Questionnaire ({assignedProjects.length})
+              Projects Using this {isQuizVariant ? 'Quiz' : 'Questionnaire'} ({assignedProjects.length})
             </h3>
             <p className="text-xs text-stone-500">
-              Projects assigned to collect requirements using this template
+              {isQuizVariant
+                ? 'Projects sharing this quiz with respondents'
+                : 'Projects assigned to collect requirements using this template'}
             </p>
           </div>
 
@@ -549,10 +612,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">
-            Questionnaires Management
+            {isQuizVariant ? 'Quizzes Management' : 'Questionnaires Management'}
           </h2>
           <p className="text-xs text-stone-500">
-            Create, customize, version, and publish reusable questionnaire templates
+            {isQuizVariant
+              ? 'Create, publish, and share scored quizzes — quiz answers are anonymous and never stored'
+              : 'Create, customize, version, and publish reusable questionnaire templates'}
           </p>
         </div>
 
@@ -597,11 +662,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
 
           <div className="space-y-2">
             <h3 className="text-lg font-black text-stone-900 tracking-tight">
-              No questionnaires yet
+              {isQuizVariant ? 'No quizzes yet' : 'No questionnaires yet'}
             </h3>
             <p className="text-xs sm:text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
-              Create one manually, or let your AI agent design the questions for you.
-              Paste the generated JSON and ReqForge turns it into a client-ready form.
+              {isQuizVariant
+                ? 'Create a scored quiz manually, or let your AI agent design the questions for you. Paste the generated JSON and ReqForge turns it into an anonymous, scored quiz.'
+                : 'Create one manually, or let your AI agent design the questions for you. Paste the generated JSON and ReqForge turns it into a client-ready form.'}
             </p>
           </div>
 
@@ -667,7 +733,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
             <button
               type="button"
               onClick={async () => {
-                const ok = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                const ok = await copyToClipboard(
+                  isQuizVariant ? REQFORGE_QUIZ_TEMPLATE_JSON : REQFORGE_CANONICAL_TEMPLATE_JSON
+                );
                 if (ok) {
                   setCopiedTemplate(true);
                   setTimeout(() => setCopiedTemplate(false), 2200);
@@ -676,7 +744,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
               className="inline-flex items-center gap-1 text-stone-600 hover:text-stone-950 font-semibold cursor-pointer underline underline-offset-4"
             >
               {copiedTemplate ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedTemplate ? 'Copied Template!' : 'Copy JSON Template'}</span>
+              <span>{copiedTemplate ? 'Copied Template!' : isQuizVariant ? 'Copy Quiz Template' : 'Copy JSON Template'}</span>
             </button>
 
             <span>&bull;</span>
@@ -701,7 +769,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search questionnaires..."
+                placeholder={isQuizVariant ? 'Search quizzes...' : 'Search questionnaires...'}
                 className="w-full pl-8 pr-3 py-1.5 text-xs text-stone-900 placeholder:text-stone-400 rounded-lg border border-stone-200 focus:outline-none focus:border-stone-900 bg-stone-50/50 focus:bg-white"
               />
             </div>
@@ -843,7 +911,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                 {filteredQuestionnaires.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-10 text-stone-400 text-xs">
-                      No questionnaires found matching your criteria.
+                      No {isQuizVariant ? 'quizzes' : 'questionnaires'} found matching your criteria.
                     </td>
                   </tr>
                 )}
@@ -859,8 +927,8 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           <div className="bg-white rounded-2xl max-w-lg w-full border border-stone-200 shadow-2xl overflow-hidden p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div>
-                <h3 className="text-base font-bold text-stone-900">Create Questionnaire</h3>
-                <p className="text-xs text-stone-500">Choose your questionnaire creation method</p>
+                <h3 className="text-base font-bold text-stone-900">Create {isQuizVariant ? 'Quiz' : 'Questionnaire'}</h3>
+                <p className="text-xs text-stone-500">Choose your {isQuizVariant ? 'quiz' : 'questionnaire'} creation method</p>
               </div>
               <button
                 type="button"
@@ -917,7 +985,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                   <button
                     type="button"
                     onClick={async () => {
-                      const ok = await copyToClipboard(REQFORGE_CANONICAL_TEMPLATE_JSON);
+                      const ok = await copyToClipboard(
+                        isQuizVariant ? REQFORGE_QUIZ_TEMPLATE_JSON : REQFORGE_CANONICAL_TEMPLATE_JSON
+                      );
                       if (ok) {
                         setCopiedTemplate(true);
                         setTimeout(() => setCopiedTemplate(false), 2200);
@@ -926,7 +996,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                     className="py-2 px-3 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1"
                   >
                     {copiedTemplate ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
-                    <span>{copiedTemplate ? 'Copied Template!' : 'Copy Template'}</span>
+                    <span>{copiedTemplate ? 'Copied Template!' : isQuizVariant ? 'Copy Quiz Template' : 'Copy Template'}</span>
                   </button>
                 </div>
               </div>
@@ -976,7 +1046,19 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           mode="import"
           onClose={() => setIsJsonModalOpen(false)}
           onImportSuccess={(imported) => {
-            setBuilderQuestionnaire(imported);
+            // Imports from the Quizzes section always open as quizzes, even
+            // if the pasted JSON omits the quiz flags.
+            setBuilderQuestionnaire(
+              isQuizVariant
+                ? {
+                    ...imported,
+                    quiz: true,
+                    showScoreOnSubmit: imported.showScoreOnSubmit ?? true,
+                    showCorrectAnswers: imported.showCorrectAnswers ?? true,
+                    passMark: imported.passMark ?? 70,
+                  }
+                : imported
+            );
           }}
         />
       )}

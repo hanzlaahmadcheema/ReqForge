@@ -14,6 +14,9 @@ import {
   Save,
   Check,
   FileEdit,
+  ShieldCheck,
+  ListChecks,
+  ListOrdered,
 } from 'lucide-react';
 import { Questionnaire, Section, Question, AnswerValue, QuestionnaireAnswers } from '../types';
 import { QuestionCard } from './QuestionCard';
@@ -22,7 +25,21 @@ import { SectionDrawer } from './SectionDrawer';
 import { ReviewSummary } from './ReviewSummary';
 import { isQuestionVisible } from '../lib/conditionalLogic';
 import { saveQuestionnaireDraft, fetchDraftSubmission } from '../lib/questionnaireService';
-import { scoreQuiz, type QuizResult } from '../lib/quizScoring';
+import {
+  scoreQuiz,
+  scoreQuestion,
+  isScorableQuestion,
+  type QuizResult,
+  type QuizQuestionResult,
+} from '../lib/quizScoring';
+import {
+  getQuizProgressKey,
+  loadQuizProgress,
+  saveQuizProgress,
+  clearQuizProgress,
+  type QuizAnswerMode,
+  type QuizProgress,
+} from '../lib/quizLocalStorage';
 
 interface QuestionnaireFormProps {
   questionnaire: Questionnaire;
@@ -73,13 +90,39 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const [contactPerson, setContactPerson] = useState<string>('');
   const [contactPhone, setContactPhone] = useState<string>('');
   const [additionalRequirements, setAdditionalRequirements] = useState<string>('');
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>(initialAnswers);
+  // Quiz-only state. Quizzes are fully anonymous: progress lives in this
+  // browser's local storage only and is never sent to any server, so a
+  // refresh can resume an attempt. Requirements questionnaires are
+  // unaffected (their drafts still live in Firestore).
+  const isQuiz = questionnaire.quiz === true;
+  const quizProgressKey = getQuizProgressKey(questionnaire.id, projectId);
+  // Restored once, on mount, so the lazy initializers below read it exactly once.
+  const [restoredQuizProgress] = useState<QuizProgress | null>(() =>
+    isQuiz && !isPreview ? loadQuizProgress(quizProgressKey) : null
+  );
+
+  const [answers, setAnswers] = useState<QuestionnaireAnswers>(
+    restoredQuizProgress?.answers ?? initialAnswers
+  );
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
   const [isSectionDrawerOpen, setIsSectionDrawerOpen] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
   const [previewSubmitted, setPreviewSubmitted] = useState<boolean>(false);
   // Quiz result shown in preview mode after a simulated submit (score computed then)
   const [previewQuizResult, setPreviewQuizResult] = useState<QuizResult | null>(null);
+
+  // Answer mode chosen by the respondent at the start of a quiz:
+  // 'all' = answer everything, then see the score; 'one' = one question at
+  // a time with instant feedback. Null = not chosen yet (mode picker shows).
+  const [quizMode, setQuizMode] = useState<QuizAnswerMode | null>(
+    restoredQuizProgress?.mode ?? null
+  );
+  // One-at-a-time mode state: current question index, whether it was checked,
+  // and its per-question result.
+  const [oneIndex, setOneIndex] = useState<number>(restoredQuizProgress?.oneIndex ?? 0);
+  const [oneChecked, setOneChecked] = useState<boolean>(false);
+  const [oneResult, setOneResult] = useState<QuizQuestionResult | null>(null);
+  const [oneHint, setOneHint] = useState<string | null>(null);
 
   // Draft persistence state
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -103,6 +146,16 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   // Check and restore draft submission on mount
   useEffect(() => {
     if (isPreview) return;
+    if (isQuiz) {
+      // Anonymous quiz: no server draft exists to restore — progress was
+      // already restored from this browser's local storage above.
+      if (restoredQuizProgress && Object.keys(restoredQuizProgress.answers || {}).length > 0) {
+        setResumedDraftNotice(
+          'Your previous progress on this quiz was restored from this browser only. Nothing was sent to or saved on any server.'
+        );
+      }
+      return;
+    }
     let isMounted = true;
 
     const checkExistingDraft = async () => {
@@ -149,12 +202,37 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [projectId, clientId, questionnaire.id, initialClientCode, isPreview]);
+  }, [projectId, clientId, questionnaire.id, initialClientCode, isPreview, isQuiz, restoredQuizProgress]);
+
+  // Quiz progress auto-save: local storage only, never the server.
+  useEffect(() => {
+    if (!isQuiz || isPreview) return;
+    saveQuizProgress(quizProgressKey, {
+      answers,
+      mode: quizMode,
+      oneIndex,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [answers, quizMode, oneIndex, isQuiz, isPreview, quizProgressKey]);
 
   // Manual Draft Save Handler
   const handleSaveDraft = async () => {
     if (isPreview) {
       alert('Draft saving is disabled in preview mode.');
+      return;
+    }
+    if (isQuiz) {
+      // Anonymous quiz: a "draft" lives in this browser only — nothing is
+      // written to Firestore (the buttons that call this are hidden for
+      // quizzes; this is a guard for any other caller).
+      saveQuizProgress(quizProgressKey, {
+        answers,
+        mode: quizMode,
+        oneIndex,
+        updatedAt: new Date().toISOString(),
+      });
+      setDraftSaveSuccess(true);
+      setTimeout(() => setDraftSaveSuccess(false), 3000);
       return;
     }
     setIsSavingDraft(true);
@@ -305,6 +383,15 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       setAdditionalRequirements('');
       setCurrentSectionIndex(0);
       setPreviewQuizResult(null);
+      if (isQuiz) {
+        // Start the quiz over from the mode choice; drop local progress too.
+        clearQuizProgress(quizProgressKey);
+        setQuizMode(null);
+        setOneIndex(0);
+        setOneChecked(false);
+        setOneResult(null);
+        setOneHint(null);
+      }
     }
   };
 
@@ -314,6 +401,12 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       setPreviewQuizResult(scoreQuiz(questionnaire, answers));
       setPreviewSubmitted(true);
       return;
+    }
+
+    if (isQuiz) {
+      // A submitted quiz attempt is done: clear local progress so the next
+      // attempt starts fresh. The score is computed, never stored.
+      clearQuizProgress(quizProgressKey);
     }
 
     if (onSubmit) {
@@ -326,6 +419,58 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         existingDraftId: draftId || undefined,
       });
     }
+  };
+
+  // ---------------------------------------------------------------------------
+  // One question at a time (quiz mode 'one')
+  // ---------------------------------------------------------------------------
+  // Flat list of currently-visible questions, in order across all sections.
+  // Visibility re-evaluates as answers change, so a conditionally-hidden
+  // question never appears here (and never counts toward the score).
+  const visibleQuizQuestions: Question[] = isQuiz
+    ? sections.flatMap((sec) => (sec.questions || []).filter((q) => isQuestionVisible(q, answers)))
+    : [];
+  const safeOneIndex = Math.min(oneIndex, Math.max(visibleQuizQuestions.length - 1, 0));
+  const oneQuestion = visibleQuizQuestions[safeOneIndex] as Question | undefined;
+  const isLastOneQuestion = safeOneIndex >= visibleQuizQuestions.length - 1;
+
+  // Check the current question instantly: lock the answer and show
+  // correct/incorrect + explanation right away.
+  const handleOneCheck = () => {
+    if (!oneQuestion) return;
+    if (!isQuestionAnswered(oneQuestion.id)) {
+      setOneHint('Choose an answer first, then check it.');
+      return;
+    }
+    setOneHint(null);
+    setOneResult(scoreQuestion(oneQuestion, answers[oneQuestion.id]));
+    setOneChecked(true);
+  };
+
+  // Move on: next question, or submit for the final score on the last one.
+  const handleOneNext = () => {
+    if (!oneQuestion) return;
+    if (!oneChecked && oneQuestion.required && !isQuestionAnswered(oneQuestion.id)) {
+      setOneHint('This question is required — answer it to continue.');
+      return;
+    }
+    setOneHint(null);
+    if (isLastOneQuestion) {
+      void handleSubmit();
+      return;
+    }
+    setOneIndex((prev) => prev + 1);
+    setOneChecked(false);
+    setOneResult(null);
+  };
+
+  const handlePickQuizMode = (mode: QuizAnswerMode) => {
+    setQuizMode(mode);
+    setOneIndex(0);
+    setOneChecked(false);
+    setOneResult(null);
+    setOneHint(null);
+    setCurrentSectionIndex(0);
   };
 
   // Calculate overall form progress
@@ -374,32 +519,53 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       <nav aria-label="Questionnaire navigation and progress" className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-2xs pt-safe">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <button
-              type="button"
-              onClick={() => setIsSectionDrawerOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
-            >
-              <Layers className="w-3.5 h-3.5 text-stone-600 shrink-0" />
-              <span>Sections</span>
-            </button>
+            {(!isQuiz || quizMode === 'all') && (
+              <button
+                type="button"
+                onClick={() => setIsSectionDrawerOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 px-2.5 sm:px-3 py-1.5 rounded-xl transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
+              >
+                <Layers className="w-3.5 h-3.5 text-stone-600 shrink-0" />
+                <span>Sections</span>
+              </button>
+            )}
 
             {/* Mobile section badge */}
             <span className="text-[11px] font-semibold text-stone-500 bg-stone-100/70 px-2 py-1 rounded-lg tabular-nums inline-block sm:hidden truncate">
-              {!isReviewStep && currentSection
+              {isQuiz && quizMode === null
+                ? 'Quiz'
+                : isQuiz && quizMode === 'one'
+                ? `${safeOneIndex + 1}/${visibleQuizQuestions.length}`
+                : !isReviewStep && currentSection
                 ? `${currentSectionIndex + 1}/${sections.length}`
                 : 'Review'}
             </span>
 
             {/* Desktop section label */}
             <span className="text-xs text-stone-600 font-medium hidden sm:inline truncate max-w-xs">
-              {!isReviewStep && currentSection
+              {isQuiz && quizMode === null
+                ? 'Choose how to answer'
+                : isQuiz && quizMode === 'one'
+                ? `Question ${safeOneIndex + 1} of ${visibleQuizQuestions.length}`
+                : !isReviewStep && currentSection
                 ? `Section ${currentSectionIndex + 1} of ${sections.length}: ${currentSection.title}`
                 : 'Final Review & Submission'}
             </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {!isPreview && (
+            {isQuiz && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200"
+                title="Quiz progress is kept in this browser only — nothing is sent to a server"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Saved in this browser</span>
+                <span className="sm:hidden">Private</span>
+              </span>
+            )}
+
+            {!isPreview && !isQuiz && (
               <button
                 type="button"
                 onClick={handleSaveDraft}
@@ -475,6 +641,24 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         )}
 
+        {/* Anonymous Quiz Notice — shown on every quiz so the respondent can
+            see, before answering anything, that nothing leaves this browser. */}
+        {isQuiz && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
+            <div className="p-1 rounded-lg bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-emerald-950">Anonymous quiz — nothing is saved</p>
+              <p className="text-emerald-800 mt-0.5 leading-relaxed">
+                Your answers are never sent to or stored on any server, and no one can see them.
+                Your score is calculated in this browser only, and your progress is kept only in
+                this browser&apos;s local storage.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Badges */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4 px-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -506,8 +690,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         </div>
 
-        {/* VIEW 1: ACTIVE SECTION QUESTIONS */}
-        {!isReviewStep && currentSection && (
+        {/* VIEW 1: ACTIVE SECTION QUESTIONS (whole-form mode; also the only
+            view for non-quiz questionnaires) */}
+        {!isReviewStep && currentSection && (!isQuiz || quizMode === 'all') && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Section Description Card */}
             <div className="bg-white rounded-xl p-4 border border-stone-200/80 shadow-xs">
@@ -555,6 +740,141 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         )}
 
+        {/* QUIZ MODE PICKER: the respondent chooses, at the start of the quiz,
+            how to answer — the whole form at once, or one question at a time. */}
+        {isQuiz && quizMode === null && !isReviewStep && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-xl p-5 border border-stone-200/80 shadow-xs">
+              <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                How do you want to answer?
+              </p>
+              <h1 className="text-lg font-bold text-stone-900 mt-0.5">
+                {questionnaire.title}
+              </h1>
+              {questionnaire.description && (
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                  {questionnaire.description}
+                </p>
+              )}
+              <p className="text-xs text-stone-500 mt-2">
+                {visibleQuizQuestions.length} question{visibleQuizQuestions.length === 1 ? '' : 's'}
+                {questionnaire.passMark !== undefined
+                  ? ` · Pass mark ${questionnaire.passMark}%`
+                  : ''}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handlePickQuizMode('all')}
+                className="text-left bg-white rounded-2xl p-5 border-2 border-stone-200 hover:border-stone-900 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+              >
+                <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center mb-3">
+                  <ListChecks className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-bold text-stone-900">Answer all, then see your score</p>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Go through every question first, review your answers, then submit once to see
+                  your score.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePickQuizMode('one')}
+                className="text-left bg-white rounded-2xl p-5 border-2 border-stone-200 hover:border-stone-900 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+              >
+                <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center mb-3">
+                  <ListOrdered className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-bold text-stone-900">One question at a time</p>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Answer one question, check it instantly to see if it&apos;s right, then move
+                  to the next.
+                </p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* QUIZ ONE-AT-A-TIME VIEW: a single question, checked instantly. */}
+        {isQuiz && quizMode === 'one' && !isReviewStep && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-bold text-stone-700 tabular-nums">
+                Question {safeOneIndex + 1} of {visibleQuizQuestions.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => handlePickQuizMode('all')}
+                className="text-[11px] font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
+              >
+                Answer all at once instead
+              </button>
+            </div>
+
+            <div className="w-full bg-stone-200 h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-stone-900 h-1.5 transition-all duration-300 ease-out"
+                style={{
+                  width: `${
+                    visibleQuizQuestions.length > 0
+                      ? ((safeOneIndex + 1) / visibleQuizQuestions.length) * 100
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+
+            {oneQuestion ? (
+              <>
+                <QuestionCard
+                  key={oneQuestion.id}
+                  question={oneQuestion}
+                  answer={answers[oneQuestion.id]}
+                  onChange={handleAnswerChange}
+                  showError={!!validationErrors[oneQuestion.id]}
+                  quizResult={oneChecked ? oneResult : null}
+                  showQuizFeedback={oneChecked}
+                />
+
+                {oneHint && (
+                  <p className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5">
+                    {oneHint}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-2">
+                  {!oneChecked && isScorableQuestion(oneQuestion) ? (
+                    <button
+                      type="button"
+                      onClick={handleOneCheck}
+                      className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+                    >
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span>Check answer</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleOneNext}
+                      className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+                    >
+                      <span>{isLastOneQuestion ? 'See my score' : 'Next question'}</span>
+                      <ChevronRight className="w-4 h-4 shrink-0" />
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 bg-white rounded-xl border border-dashed border-stone-200 text-xs text-stone-400">
+                No questions currently available in this quiz.
+              </div>
+            )}
+          </div>
+        )}
+
         {/* VIEW 2: FINAL REVIEW & SUBMISSION */}
         {isReviewStep && (
           <ReviewSummary
@@ -572,6 +892,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             onSubmit={handleSubmit}
             isSubmitting={isSubmitting}
             submitError={submitError}
+            isQuiz={isQuiz}
           />
         )}
       </main>
@@ -587,7 +908,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               Preview Submission Simulated
             </h3>
             <p className="text-xs text-stone-600 leading-relaxed">
-              All questions, required validations, and conditional display rules executed as expected. In live client mode, this submission records directly into Firestore.
+              All questions, required validations, and conditional display rules executed as expected.{' '}
+              {isQuiz
+                ? 'In live mode, quiz answers are never saved anywhere — scoring happens in the respondent\u2019s browser only.'
+                : 'In live client mode, this submission records directly into Firestore.'}
             </p>
             {previewQuizResult && (
               <div
@@ -644,7 +968,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         </div>
       )}
 
-      {/* STICKY BOTTOM ACTION BAR */}
+      {/* STICKY BOTTOM ACTION BAR — hidden on the quiz mode picker and in
+          one-at-a-time mode, which carry their own buttons. */}
+      {!(isQuiz && quizMode !== 'all') && (
       <footer className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-stone-200/90 py-2.5 px-3 sm:px-4 pb-safe shadow-lg">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -662,7 +988,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               <span>Previous</span>
             </button>
 
-            {!isPreview && (
+            {!isPreview && !isQuiz && (
               <button
                 type="button"
                 onClick={handleSaveDraft}
@@ -724,13 +1050,14 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               ) : (
                 <>
                   <Send className="w-3.5 h-3.5 shrink-0" />
-                  <span>Submit Requirements</span>
+                  <span>{isQuiz ? 'Submit Quiz & See Score' : 'Submit Requirements'}</span>
                 </>
               )}
             </button>
           )}
         </div>
       </footer>
+      )}
     </div>
   );
 };

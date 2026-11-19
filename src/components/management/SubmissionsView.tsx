@@ -23,6 +23,7 @@ import { reconstructAnswersFromSubmission } from '../../lib/firebase';
 import { generateQuestionnairePdf } from '../../lib/generatePdf';
 import { exportSubmissionToCsv, exportSubmissionToJson } from '../../lib/exportService';
 import { scoreQuiz } from '../../lib/quizScoring';
+import { formatQuestionnaireOptionLabel } from '../../lib/questionnaireService';
 
 interface SubmissionsViewProps {
   submissions: Submission[];
@@ -333,7 +334,7 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
               <option value="ALL">All Questionnaires</option>
               {questionnaires.map((q) => (
                 <option key={q.id} value={q.id}>
-                  {q.title} (v{q.version})
+                  {formatQuestionnaireOptionLabel(q)}
                 </option>
               ))}
             </select>

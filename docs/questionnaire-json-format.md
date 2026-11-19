@@ -195,7 +195,11 @@ The importer maintains **100% backward compatibility** with legacy V1 questionna
 Existing stored questionnaires and historical JSON files continue to work without modification.
 
 ### 4.5 Quiz / Assessment Mode
-Set `"quiz": true` at the questionnaire level to turn a questionnaire into a scored quiz or assessment. The respondent sees their score (earned/total, percentage, and Passed/Failed when a `pass_mark` is set) immediately after submitting, plus per-question correct/incorrect marking and explanations. Admins see the same score on each submission. Drafts are never scored — the score is computed at submit time only.
+Set `"quiz": true` at the questionnaire level to turn a questionnaire into a scored quiz or assessment. The respondent sees their score (earned/total, percentage, and Passed/Failed when a `pass_mark` is set) immediately after submitting, plus per-question correct/incorrect marking and explanations. Drafts are never scored — the score is computed at submit time only.
+
+**Answer modes:** at the start of a quiz the respondent chooses how to answer — either answer the whole form at once and see the score after submitting, or answer one question at a time and see instantly whether each answer is right (with the explanation) before moving to the next. The choice is theirs; both modes use the same scoring rules below.
+
+**Anonymity — quizzes are never stored:** quiz responses are never saved to the database — no submissions, no drafts, no mirrors. The score is calculated in the respondent's browser only, and the only place anything is kept is that browser's local storage (so a refresh can resume progress). The quiz form says this plainly, so respondents know they are anonymous. Admins do **not** see quiz scores or answers anywhere — there is nothing to list, because nothing was ever sent. Requirements questionnaires are unaffected: they still save submissions and drafts exactly as before.
 
 ```json
 {
@@ -243,6 +247,8 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
 - `points` defaults to `1` when omitted. Questions of other types (`text`, `number`, `date`, etc.) are shown but never scored.
 - Conditionally-hidden questions (see Section 5) are excluded from the total.
 - Quiz questionnaires are excluded from the AI requirements/gap analysis.
+- Quizzes live in their own **Quizzes** section in the admin, separate from requirements questionnaires — they never mix in one list.
+- Quiz answers are anonymous (see above): no database writes of any kind; local storage only.
 
 ---
 

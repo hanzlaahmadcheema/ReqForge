@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Project, Client, Questionnaire, Submission } from '../../types';
 import { copyToClipboard } from '../../lib/clipboardUtils';
+import { formatQuestionnaireOptionLabel } from '../../lib/questionnaireService';
 
 interface ProjectsViewProps {
   projects: Project[];
@@ -360,7 +361,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
               >
                 {questionnaires.map((q) => (
                   <option key={q.id} value={q.id}>
-                    {q.title} (v{q.version})
+                    {formatQuestionnaireOptionLabel(q)}
                   </option>
                 ))}
               </select>
@@ -463,7 +464,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                 <option value="" disabled>Assign another questionnaire...</option>
                 {questionnaires.map((q) => (
                   <option key={q.id} value={q.id}>
-                    {q.title} (v{q.version})
+                    {formatQuestionnaireOptionLabel(q)}
                   </option>
                 ))}
               </select>
@@ -960,7 +961,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
                   <option value="">None / Unassigned (Select later)</option>
                   {questionnaires.map((q) => (
                     <option key={q.id} value={q.id}>
-                      {q.title} (v{q.version})
+                      {formatQuestionnaireOptionLabel(q)}
                     </option>
                   ))}
                 </select>

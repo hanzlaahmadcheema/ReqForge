@@ -38,6 +38,7 @@ import {
   Submission,
 } from '../../types';
 import { CreatePublicFormParams } from '../../lib/publicFormService';
+import { formatQuestionnaireOptionLabel } from '../../lib/questionnaireService';
 import { copyToClipboard } from '../../lib/clipboardUtils';
 
 interface PublicFormsViewProps {
@@ -510,7 +511,7 @@ export const PublicFormsView: React.FC<PublicFormsViewProps> = ({
                     <option value="" disabled>-- Select Questionnaire --</option>
                     {questionnaires.map((q) => (
                       <option key={q.id} value={q.id}>
-                        {q.title} (v{q.version})
+                        {formatQuestionnaireOptionLabel(q)}
                       </option>
                     ))}
                   </select>

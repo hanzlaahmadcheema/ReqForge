@@ -19,6 +19,8 @@ interface ReviewSummaryProps {
   onSubmit: () => void;
   isSubmitting: boolean;
   submitError: string | null;
+  /** Anonymous quiz: no contact details, no Firestore copy, submit shows the score. */
+  isQuiz?: boolean;
 }
 
 export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
@@ -36,6 +38,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
   onSubmit,
   isSubmitting,
   submitError,
+  isQuiz = false,
 }) => {
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
@@ -72,10 +75,12 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-stone-900">
-                Ready for Final Submission
+                {isQuiz ? 'Ready to See Your Score' : 'Ready for Final Submission'}
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                Review your answers below. You can download a PDF copy before submitting to Firestore.
+                {isQuiz
+                  ? 'Review your answers below. Nothing is saved — your score is calculated in this browser only.'
+                  : 'Review your answers below. You can download a PDF copy before submitting to Firestore.'}
               </p>
             </div>
           </div>
@@ -105,7 +110,9 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
           </button>
         </div>
 
-        {/* Client & Contact Header Card */}
+        {/* Client & Contact Header Card — not shown for anonymous quizzes:
+            a quiz asks for no identifying details. */}
+        {!isQuiz && (
         <div className="mt-5 pt-4 border-t border-stone-150 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-semibold text-stone-700 mb-1 flex items-center gap-1.5">
@@ -152,6 +159,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
             />
           </div>
         </div>
+        )}
       </div>
 
       {/* Visual Recharts Progress Chart */}
@@ -161,7 +169,8 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
         onJumpToSection={onJumpToSection}
       />
 
-      {/* Additional Requirements Textarea */}
+      {/* Additional Requirements Textarea — not applicable to anonymous quizzes. */}
+      {!isQuiz && (
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/80 shadow-xs">
         <label className="block text-sm font-semibold text-stone-900 mb-1.5">
           Additional Requirements & Special Notes
@@ -177,6 +186,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
           className="w-full p-3.5 sm:p-3 text-base sm:text-sm rounded-xl border border-stone-200 focus:outline-none focus:ring-2 focus:ring-sky-500/20 text-stone-900 resize-y"
         />
       </div>
+      )}
 
       {/* Section by Section Review */}
       <div className="space-y-3">
@@ -300,19 +310,23 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Saving to Firestore...</span>
+                <span>{isQuiz ? 'Scoring your answers...' : 'Saving to Firestore...'}</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>Submit Questionnaire</span>
+                <span>{isQuiz ? 'Submit Quiz & See Score' : 'Submit Questionnaire'}</span>
               </>
             )}
           </button>
         </div>
 
         <p className="text-center text-[11px] text-stone-400">
-          Responses will be safely stored under Firestore collection <span className="font-mono font-medium text-stone-600">clientResponses</span>
+          {isQuiz ? (
+            <>Anonymous quiz — nothing is saved or sent anywhere.</>
+          ) : (
+            <>Responses will be safely stored under Firestore collection <span className="font-mono font-medium text-stone-600">clientResponses</span></>
+          )}
         </p>
       </div>
     </div>

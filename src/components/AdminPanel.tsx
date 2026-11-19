@@ -4,6 +4,7 @@ import {
   Users,
   FolderKanban,
   FileQuestion,
+  GraduationCap,
   FileCheck2,
   ArrowLeft,
   LogOut,
@@ -68,7 +69,7 @@ interface AdminPanelProps {
   onBackToForm: () => void;
   onLock?: () => void;
   defaultClientCode?: string;
-  defaultTab?: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms' | 'account';
+  defaultTab?: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'quizzes' | 'submissions' | 'publicForms' | 'account';
   currentWorkspace?: Workspace | null;
   currentUser?: User | null;
   adminRecord?: AdminRecord | null;
@@ -88,7 +89,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onWorkspaceUpdated,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms' | 'account'
+    'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'quizzes' | 'submissions' | 'publicForms' | 'account'
   >(defaultTab);
 
   const workspaceId = currentWorkspace?.id || currentUser?.uid;
@@ -103,6 +104,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Quizzes live apart from requirements questionnaires — never mixed in one list.
+  const quizQuestionnaires = questionnaires.filter((q) => q.quiz === true);
+  const requirementQuestionnaires = questionnaires.filter((q) => q.quiz !== true);
 
   // Modals & Inspection states
   const [shareLinkProject, setShareLinkProject] = useState<Project | null>(null);
@@ -346,7 +351,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   interface NavTabItem {
-    id: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'submissions' | 'publicForms' | 'account';
+    id: 'dashboard' | 'clients' | 'projects' | 'questionnaires' | 'quizzes' | 'submissions' | 'publicForms' | 'account';
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     count?: number;
@@ -356,7 +361,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'clients', label: 'Clients', icon: Users, count: clients.length },
     { id: 'projects', label: 'Projects', icon: FolderKanban, count: projects.length },
-    { id: 'questionnaires', label: 'Questionnaires', icon: FileQuestion, count: questionnaires.length },
+    { id: 'questionnaires', label: 'Questionnaires', icon: FileQuestion, count: requirementQuestionnaires.length },
+    { id: 'quizzes', label: 'Quizzes', icon: GraduationCap, count: quizQuestionnaires.length },
     { id: 'submissions', label: 'Submissions', icon: FileCheck2, count: submissions.length },
     { id: 'publicForms', label: 'Public Forms', icon: Link2, count: publicForms.length },
     { id: 'account', label: 'Account', icon: ShieldCheck },
@@ -566,7 +572,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             {activeTab === 'questionnaires' && (
               <QuestionnairesView
-                questionnaires={questionnaires}
+                variant="questionnaires"
+                questionnaires={requirementQuestionnaires}
+                projects={projects}
+                clients={clients}
+                onRefresh={loadAllData}
+                onSelectProject={(projectId) => {
+                  setSelectedProjectIdForNav(projectId);
+                  setActiveTab('projects');
+                }}
+              />
+            )}
+
+            {activeTab === 'quizzes' && (
+              <QuestionnairesView
+                variant="quizzes"
+                questionnaires={quizQuestionnaires}
                 projects={projects}
                 clients={clients}
                 onRefresh={loadAllData}

@@ -49,7 +49,8 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         answers,
         additionalRequirements,
         isSubmitted: true,
-        submissionDocId: docId,
+        // Anonymous quiz: there is no stored record, so no document ID.
+        submissionDocId: isQuiz ? undefined : docId,
         quizResult: quizResult || undefined,
       });
     } catch (err) {
@@ -75,8 +76,13 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     if (projectName) {
       content += `Project: ${projectName}\n`;
     }
-    content += `Firestore Document ID: ${docId}\n`;
-    content += `Firestore Collection: submissions\n`;
+    if (quizResult) {
+      // Anonymous quiz: no record exists anywhere — say so explicitly.
+      content += `Anonymous quiz — no record was saved. Score calculated in your browser only.\n`;
+    } else {
+      content += `Firestore Document ID: ${docId}\n`;
+      content += `Firestore Collection: submissions\n`;
+    }
     content += `Submitted At: ${new Date().toLocaleString()}\n\n`;
 
     if (quizResult) {
@@ -144,7 +150,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       </h2>
       <p className="text-sm text-stone-600 mt-2 max-w-md mx-auto">
         {isQuiz
-          ? 'Your answers have been scored and safely saved directly into Firebase Firestore.'
+          ? 'Your score was calculated in this browser only. Nothing was saved or sent anywhere — this quiz is completely anonymous.'
           : 'Your client requirements answers have been safely saved directly into Firebase Firestore.'}
       </p>
 
@@ -198,7 +204,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         </div>
       )}
 
-      {/* Database Record Card */}
+      {/* Database Record Card — not shown for anonymous quizzes: there is no
+          stored record to point at. */}
+      {!isQuiz && (
       <div className="mt-6 bg-white rounded-2xl p-5 border border-stone-200 shadow-xs text-left">
         <div className="flex items-center gap-2 pb-3 border-b border-stone-150">
           <Database className="w-4 h-4 text-sky-600" />
@@ -255,6 +263,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Quiz Per-Question Review */}
       {showAnswers && quizResult && quizResult.perQuestion.length > 0 && (
