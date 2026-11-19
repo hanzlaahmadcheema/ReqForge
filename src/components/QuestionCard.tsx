@@ -20,6 +20,14 @@ interface QuestionCardProps {
    * no answer key render as-is, with their explanation when one exists.
    */
   studyMode?: boolean;
+  /**
+   * Number badge to show instead of the question's own order number.
+   * Attempt modes pass the question's position in the shuffled sequence
+   * (1, 2, 3, ...) so the badge matches the order the respondent sees;
+   * study mode and requirements questionnaires leave it unset and show
+   * the question's own number.
+   */
+  displayNumber?: number;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -30,6 +38,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   quizResult = null,
   showQuizFeedback = false,
   studyMode = false,
+  displayNumber,
 }) => {
   const currentValue = answer?.value;
   const currentOtherText = answer?.otherText || '';
@@ -117,7 +126,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   const questionTitle = question.text || question.title || '';
   const questionDescription = question.description || question.helperText;
-  const questionNumber = question.order ?? question.questionNumber ?? 1;
+  const questionNumber = displayNumber ?? question.order ?? question.questionNumber ?? 1;
 
   // Normalized type flags
   const isYesNo = question.type === 'yes_no';
@@ -157,6 +166,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           .map((o) => o.value);
   const yesIsCorrectAnswer = question.correctAnswer === true;
   const noIsCorrectAnswer = question.correctAnswer === false;
+  // Yes/No button order follows the question's (possibly shuffled) options:
+  // when the options list puts No before Yes, No renders first, so a
+  // shuffled yes/no question can swap the two positions. Falls back to
+  // Yes first when the options carry no usable order.
+  const yesNoOrder: boolean[] = (() => {
+    const opts = question.options || [];
+    const yesIdx = opts.findIndex((o) => o.value === 'true' || o.value === 'yes');
+    const noIdx = opts.findIndex((o) => o.value === 'false' || o.value === 'no');
+    if (yesIdx < 0 || noIdx < 0) return [true, false];
+    return noIdx < yesIdx ? [false, true] : [true, false];
+  })();
 
   return (
     <div
@@ -230,68 +250,51 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
       {/* Inputs based on type (locked once results are shown, or in study mode) */}
       <div className={`mt-3.5 pl-0 sm:pl-10 space-y-2.5 ${showFeedback || showStudy ? 'pointer-events-none' : ''}`}>
-        {/* 1. YES / NO TYPE */}
+        {/* 1. YES / NO TYPE — buttons render in the order of the question's
+            options, so a shuffled yes/no question can put No first. */}
         {isYesNo && (
           <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => handleValueChange(true)}
-              className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                showAnswerKey
-                  ? yesIsCorrectAnswer
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
-                    : currentValue === true
-                    ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
-                    : 'bg-white border-stone-200 text-stone-500'
-                  : currentValue === true
-                  ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
-                  : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 transition-colors ${
-                  currentValue === true
-                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                    : 'border-stone-300'
-                }`}
-              >
-                {currentValue === true && <Check className="w-2.5 h-2.5" />}
-              </div>
-              <span className="truncate">{yesOptionLabel}</span>
-              {showAnswerKey && yesIsCorrectAnswer && (
-                <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleValueChange(false)}
-              className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                showAnswerKey
-                  ? noIsCorrectAnswer
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
-                    : currentValue === false
-                    ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
-                    : 'bg-white border-stone-200 text-stone-500'
-                  : currentValue === false
-                  ? 'bg-stone-100 border-stone-600 text-stone-950 ring-2 ring-stone-400/20 shadow-xs'
-                  : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 transition-colors ${
-                  currentValue === false
-                    ? 'border-stone-700 bg-stone-700 text-white'
-                    : 'border-stone-300'
-                }`}
-              >
-                {currentValue === false && <Check className="w-2.5 h-2.5" />}
-              </div>
-              <span className="truncate">{noOptionLabel}</span>
-              {showAnswerKey && noIsCorrectAnswer && (
-                <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
-              )}
-            </button>
+            {yesNoOrder.map((isYes) => {
+              const isCorrect = isYes ? yesIsCorrectAnswer : noIsCorrectAnswer;
+              const isSelected = currentValue === isYes;
+              const isWrongPick = showFeedback && isSelected && !isCorrect;
+              return (
+                <button
+                  key={isYes ? 'yes' : 'no'}
+                  type="button"
+                  onClick={() => handleValueChange(isYes)}
+                  className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
+                    showAnswerKey
+                      ? isCorrect
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                        : isWrongPick
+                        ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
+                        : 'bg-white border-stone-200 text-stone-500'
+                      : isSelected
+                      ? isYes
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'bg-stone-100 border-stone-600 text-stone-950 ring-2 ring-stone-400/20 shadow-xs'
+                      : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 transition-colors ${
+                      isSelected
+                        ? isYes
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-stone-700 bg-stone-700 text-white'
+                        : 'border-stone-300'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-2.5 h-2.5" />}
+                  </div>
+                  <span className="truncate">{isYes ? yesOptionLabel : noOptionLabel}</span>
+                  {showAnswerKey && isCorrect && (
+                    <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 

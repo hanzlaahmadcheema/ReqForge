@@ -203,6 +203,8 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
 
 **Progress kept in the browser:** a refresh resumes exactly where the respondent left off — answers, the chosen answer mode, and the current question. In one-at-a-time mode a checked question keeps its correct/incorrect feedback and explanation (the answer stays locked). A finished quiz keeps its score screen on refresh, with a "Take the quiz again" action to start over. Reset (with a confirmation dialog) clears all answers and the saved progress and returns to the mode choice.
 
+**Shuffling (attempt modes only):** when an attempt starts, the questions are shuffled across the WHOLE quiz into one flat sequence — not in section order, and section grouping is not shown while attempting. The options inside each question are shuffled too (whole option objects, so the correct answer stays attached to its option), including yes/no, whose two positions may swap. Each new attempt deals a fresh random order. During an attempt a **Shuffle** button re-deals the questions and the options again on demand; answers and checked feedback travel with their questions, so nothing is lost — in one-at-a-time mode the attempt resumes at the first unanswered question in the new order (or stays on the last question when everything is answered). The shuffled order is kept in the browser's local storage with the rest of the progress, so a refresh keeps the same order instead of dealing a new one. Study mode is never shuffled: it keeps the original question order and section grouping so the answer key reads in order.
+
 ```json
 {
   "questionnaire": {

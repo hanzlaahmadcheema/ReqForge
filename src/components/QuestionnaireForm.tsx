@@ -18,6 +18,7 @@ import {
   ListChecks,
   ListOrdered,
   BookOpen,
+  Shuffle,
 } from 'lucide-react';
 import { Questionnaire, Section, Question, AnswerValue, QuestionnaireAnswers } from '../types';
 import { QuestionCard } from './QuestionCard';
@@ -43,6 +44,38 @@ import {
   type QuizAnswerMode,
   type QuizProgress,
 } from '../lib/quizLocalStorage';
+import {
+  dealQuizShuffle,
+  normalizeQuestionOrder,
+  normalizeOptionOrder,
+  optionValuesForQuestion,
+  orderQuestions,
+  withShuffledOptions,
+} from '../lib/quizShuffle';
+
+/**
+ * The questions of an attempt, in the order the respondent answers them:
+ * currently-visible questions (conditional gates re-evaluated against the
+ * answers so far), ordered by the attempt's stored shuffle and with each
+ * question's options reordered per its stored option order. Attempt modes
+ * show ONE flat shuffled sequence across the whole quiz — no section
+ * grouping. Questions not present in a stored order (e.g. newly visible
+ * conditional questions) slot in at the end in canonical order.
+ */
+function orderedVisibleQuestions(
+  questionnaire: Questionnaire,
+  answers: QuestionnaireAnswers,
+  questionOrder: readonly string[] | null,
+  optionOrder: Record<string, string[]> | null
+): Question[] {
+  const sections = (questionnaire.sections || []).filter((s) => s.enabled !== false);
+  const visible = sections.flatMap((sec) =>
+    (sec.questions || []).filter((q) => isQuestionVisible(q, answers))
+  );
+  return orderQuestions(visible, questionOrder).map((q) =>
+    withShuffledOptions(q, optionOrder?.[q.id] ?? null)
+  );
+}
 
 interface QuestionnaireFormProps {
   questionnaire: Questionnaire;
@@ -104,6 +137,48 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     isQuiz && !isPreview ? loadQuizProgress(quizProgressKey) : null
   );
 
+  // Shuffled order for this attempt (attempt modes only): a permutation of
+  // ALL question ids in the quiz (flat, across sections) + a shuffled
+  // option-value order per question. Restored from local storage so a
+  // refresh keeps the SAME shuffled order; a fresh attempt deals a fresh
+  // shuffle (see handlePickQuizMode / handleShuffle). Study mode never
+  // uses these — it keeps the original order and section grouping.
+  const initialShuffle = (() => {
+    const empty = {
+      questionOrder: null as string[] | null,
+      optionOrder: null as Record<string, string[]> | null,
+    };
+    if (!isQuiz || isPreview || !restoredQuizProgress) return empty;
+    const allQuestions = (questionnaire.sections || []).flatMap(
+      (sec) => sec.questions || []
+    );
+    if (!restoredQuizProgress.questionOrder?.length) {
+      // Progress saved before shuffling existed: deal a fresh order for
+      // the resumed attempt instead of falling back to section order.
+      return dealQuizShuffle(allQuestions);
+    }
+    const questionOrder = normalizeQuestionOrder(
+      restoredQuizProgress.questionOrder,
+      allQuestions.map((q) => q.id)
+    );
+    const optionOrder: Record<string, string[]> = {};
+    for (const q of allQuestions) {
+      const values = optionValuesForQuestion(q);
+      if (values.length <= 1) continue;
+      optionOrder[q.id] = normalizeOptionOrder(
+        restoredQuizProgress.optionOrder?.[q.id] ?? null,
+        values
+      );
+    }
+    return { questionOrder, optionOrder };
+  })();
+  const [questionOrder, setQuestionOrder] = useState<string[] | null>(
+    initialShuffle.questionOrder
+  );
+  const [optionOrder, setOptionOrder] = useState<Record<string, string[]> | null>(
+    initialShuffle.optionOrder
+  );
+
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(
     restoredQuizProgress?.answers ?? initialAnswers
   );
@@ -142,9 +217,15 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const initialOneCheck = (() => {
     if (!isQuiz || !restoredQuizProgress) return { checked: false, result: null as QuizQuestionResult | null };
     const restoredAnswers = restoredQuizProgress.answers ?? {};
-    const visible = (questionnaire.sections || [])
-      .filter((s) => s.enabled !== false)
-      .flatMap((sec) => (sec.questions || []).filter((q) => isQuestionVisible(q, restoredAnswers)));
+    // The restored index refers to the SHUFFLED order, so the visible list
+    // here must be the ordered one — otherwise a refresh would restore the
+    // check state of the wrong question.
+    const visible = orderedVisibleQuestions(
+      questionnaire,
+      restoredAnswers,
+      initialShuffle.questionOrder,
+      initialShuffle.optionOrder
+    );
     if (visible.length === 0) return { checked: false, result: null as QuizQuestionResult | null };
     const idx = Math.min(restoredQuizProgress.oneIndex ?? 0, visible.length - 1);
     const q = visible[idx];
@@ -266,8 +347,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       checked: checkedResults,
       completedResult: completedQuizResult ?? undefined,
       completedAt: completedQuizResult ? new Date().toISOString() : undefined,
+      questionOrder: questionOrder ?? undefined,
+      optionOrder: optionOrder ?? undefined,
     });
-  }, [answers, quizMode, oneIndex, checkedResults, completedQuizResult, isQuiz, isPreview, quizProgressKey]);
+  }, [answers, quizMode, oneIndex, checkedResults, completedQuizResult, questionOrder, optionOrder, isQuiz, isPreview, quizProgressKey]);
 
   // Manual Draft Save Handler
   const handleSaveDraft = async () => {
@@ -287,6 +370,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         checked: checkedResults,
         completedResult: completedQuizResult ?? undefined,
         completedAt: completedQuizResult ? new Date().toISOString() : undefined,
+        questionOrder: questionOrder ?? undefined,
+        optionOrder: optionOrder ?? undefined,
       });
       setDraftSaveSuccess(true);
       setTimeout(() => setDraftSaveSuccess(false), 3000);
@@ -458,6 +543,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       clearQuizProgress(quizProgressKey);
       setQuizMode(null);
       setStudyMode(false);
+      setQuestionOrder(null);
+      setOptionOrder(null);
       setOneIndex(0);
       setOneChecked(false);
       setOneResult(null);
@@ -490,6 +577,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         checked: checkedResults,
         completedResult: result,
         completedAt: new Date().toISOString(),
+        questionOrder: questionOrder ?? null,
+        optionOrder: optionOrder ?? null,
         updatedAt: new Date().toISOString(),
       });
     }
@@ -515,6 +604,13 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const visibleQuizQuestions: Question[] = isQuiz
     ? sections.flatMap((sec) => (sec.questions || []).filter((q) => isQuestionVisible(q, answers)))
     : [];
+  // Attempt order: the same visible questions, reordered by this attempt's
+  // stored shuffle (questions shuffled across the whole quiz, options
+  // shuffled inside each question). Both attempt modes answer this one
+  // flat sequence — section grouping is not shown while attempting.
+  const orderedVisibleQuizQuestions: Question[] = isQuiz
+    ? orderedVisibleQuestions(questionnaire, answers, questionOrder, optionOrder)
+    : [];
   // Study mode lists every question in the quiz (all sections), regardless
   // of conditional visibility — there is no attempt in progress for the
   // gates to depend on, so the count must not use the filtered list above.
@@ -522,9 +618,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     (acc, sec) => acc + (sec.questions || []).length,
     0
   );
-  const safeOneIndex = Math.min(oneIndex, Math.max(visibleQuizQuestions.length - 1, 0));
-  const oneQuestion = visibleQuizQuestions[safeOneIndex] as Question | undefined;
-  const isLastOneQuestion = safeOneIndex >= visibleQuizQuestions.length - 1;
+  const safeOneIndex = Math.min(oneIndex, Math.max(orderedVisibleQuizQuestions.length - 1, 0));
+  const oneQuestion = orderedVisibleQuizQuestions[safeOneIndex] as Question | undefined;
+  const isLastOneQuestion = safeOneIndex >= orderedVisibleQuizQuestions.length - 1;
 
   // Check the current question instantly: lock the answer and show
   // correct/incorrect + explanation right away. The check result is kept in
@@ -564,15 +660,49 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     // score (state + storage) so it can never resurface on a later refresh.
     // The merge-preserve auto-save would otherwise keep a stale stored
     // result alive after this. In-progress answers/checked state are kept.
+    // Every new attempt deals a FRESH random order — questions shuffled
+    // across the whole quiz, options shuffled inside each question.
     setCompletedQuizResult(null);
     clearCompletedQuizResult(quizProgressKey);
     setStudyMode(false);
+    const fresh = dealQuizShuffle(
+      sections.flatMap((sec) => sec.questions || [])
+    );
+    setQuestionOrder(fresh.questionOrder);
+    setOptionOrder(fresh.optionOrder);
     setQuizMode(mode);
     setOneIndex(0);
     setOneChecked(false);
     setOneResult(null);
     setOneHint(null);
     setCurrentSectionIndex(0);
+  };
+
+  // Re-shuffle on demand, mid-attempt (both attempt modes): questions AND
+  // options are dealt again. Answers and checked feedback are keyed by
+  // questionId, so they travel with their questions — nothing is lost.
+  // One-at-a-time resumes at the first unanswered question in the new
+  // order (or stays on the last question when everything is answered),
+  // with that question's checked feedback restored from the checked map.
+  const handleShuffle = () => {
+    if (!isQuiz || quizMode === null || studyMode) return;
+    const fresh = dealQuizShuffle(
+      sections.flatMap((sec) => sec.questions || [])
+    );
+    setQuestionOrder(fresh.questionOrder);
+    setOptionOrder(fresh.optionOrder);
+    if (quizMode === 'one') {
+      const ordered = orderQuestions(visibleQuizQuestions, fresh.questionOrder);
+      const firstUnanswered = ordered.findIndex((q) => !isQuestionAnswered(q.id));
+      const idx =
+        firstUnanswered === -1 ? Math.max(ordered.length - 1, 0) : firstUnanswered;
+      setOneIndex(idx);
+      const q = ordered[idx] as Question | undefined;
+      const res = q ? checkedResults[q.id] ?? null : null;
+      setOneChecked(!!res);
+      setOneResult(res);
+      setOneHint(null);
+    }
   };
 
   // Study mode: read the answer key, don't attempt. Nothing is persisted
@@ -586,6 +716,36 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   // Back to the mode picker from study mode (to attempt, or to leave).
   const handleExitStudyMode = () => {
     setStudyMode(false);
+  };
+
+  // Validate the whole flat quiz before going to the review step: every
+  // visible required question must be answered (mirrors the per-section
+  // validation of the sectioned flow).
+  const validateAllQuizQuestions = (): boolean => {
+    const newErrors: Record<string, boolean> = {};
+    let hasError = false;
+    for (const q of orderedVisibleQuizQuestions) {
+      if (q.required && !isQuestionAnswered(q.id)) {
+        newErrors[q.id] = true;
+        hasError = true;
+      }
+    }
+    setValidationErrors(newErrors);
+    if (hasError) {
+      const firstErrorId = Object.keys(newErrors)[0];
+      const el = document.getElementById(`question-card-${firstErrorId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return false;
+    }
+    return true;
+  };
+
+  // Flat 'all' quiz view: go to the final review step.
+  const handleQuizReview = () => {
+    if (!validateAllQuizQuestions()) return;
+    setCurrentSectionIndex(sections.length);
   };
 
   // Calculate overall form progress
@@ -634,7 +794,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       <nav aria-label="Questionnaire navigation and progress" className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-2xs pt-safe">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {(!isQuiz || quizMode === 'all') && !studyMode && (
+            {!isQuiz && !studyMode && (
               <button
                 type="button"
                 onClick={() => setIsSectionDrawerOpen(true)}
@@ -652,7 +812,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 : isQuiz && quizMode === null
                 ? 'Quiz'
                 : isQuiz && quizMode === 'one'
-                ? `${safeOneIndex + 1}/${visibleQuizQuestions.length}`
+                ? `${safeOneIndex + 1}/${orderedVisibleQuizQuestions.length}`
+                : isQuiz && quizMode === 'all'
+                ? 'Quiz'
                 : !isReviewStep && currentSection
                 ? `${currentSectionIndex + 1}/${sections.length}`
                 : 'Review'}
@@ -665,7 +827,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 : isQuiz && quizMode === null
                 ? 'Choose how to begin'
                 : isQuiz && quizMode === 'one'
-                ? `Question ${safeOneIndex + 1} of ${visibleQuizQuestions.length}`
+                ? `Question ${safeOneIndex + 1} of ${orderedVisibleQuizQuestions.length}`
+                : isQuiz && quizMode === 'all'
+                ? `Quiz · ${totalVisibleQuestions} question${totalVisibleQuestions === 1 ? '' : 's'}`
                 : !isReviewStep && currentSection
                 ? `Section ${currentSectionIndex + 1} of ${sections.length}: ${currentSection.title}`
                 : 'Final Review & Submission'}
@@ -682,6 +846,21 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 <span className="hidden sm:inline">Saved in this browser</span>
                 <span className="sm:hidden">Private</span>
               </span>
+            )}
+
+            {/* Shuffle — attempt modes only (never study mode): deals the
+                questions and the options again, on demand. Answers travel
+                with their questions, so nothing is lost by reshuffling. */}
+            {isQuiz && quizMode !== null && !studyMode && (
+              <button
+                type="button"
+                onClick={handleShuffle}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 active:bg-stone-300 border border-stone-200 transition-all cursor-pointer min-h-[36px] active:scale-[0.98]"
+                title="Shuffle the questions and the options again"
+              >
+                <Shuffle className="w-3.5 h-3.5 shrink-0" />
+                <span>Shuffle</span>
+              </button>
             )}
 
             {!isPreview && !isQuiz && (
@@ -809,9 +988,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         </div>
 
-        {/* VIEW 1: ACTIVE SECTION QUESTIONS (whole-form mode; also the only
-            view for non-quiz questionnaires) */}
-        {!isReviewStep && currentSection && (!isQuiz || quizMode === 'all') && (
+        {/* VIEW 1: ACTIVE SECTION QUESTIONS (requirements questionnaires
+            only). Quiz attempts never use sections — they answer one flat
+            shuffled sequence (see the quiz 'all' view below). */}
+        {!isReviewStep && currentSection && !isQuiz && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Section Description Card */}
             <div className="bg-white rounded-xl p-4 border border-stone-200/80 shadow-xs">
@@ -855,6 +1035,65 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                   No questions currently available in this section.
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* QUIZ 'ALL' VIEW: one flat shuffled sequence across the whole
+            quiz — no section grouping. Every visible question on one page,
+            in this attempt's shuffled order with shuffled options; answers
+            are keyed by questionId, so reshuffling never loses them. */}
+        {isQuiz && quizMode === 'all' && !isReviewStep && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-xs font-bold text-stone-700 tabular-nums">
+                {totalAnsweredQuestions} of {totalVisibleQuestions} answered
+              </span>
+              <button
+                type="button"
+                onClick={handleShuffle}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer shrink-0"
+                title="Shuffle the questions and the options again"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span>Shuffle questions</span>
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              {orderedVisibleQuizQuestions.map((question, idx) => (
+                <QuestionCard
+                  key={question.id}
+                  question={question}
+                  answer={answers[question.id]}
+                  onChange={handleAnswerChange}
+                  showError={!!validationErrors[question.id]}
+                  quizResult={
+                    previewQuizResult?.perQuestion.find(
+                      (r) => r.questionId === question.id
+                    ) || null
+                  }
+                  showQuizFeedback={!!previewQuizResult}
+                  displayNumber={idx + 1}
+                />
+              ))}
+
+              {orderedVisibleQuizQuestions.length === 0 && (
+                <div className="text-center py-8 bg-white rounded-xl border border-dashed border-stone-200 text-xs text-stone-400">
+                  No questions currently available in this quiz.
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-1">
+              <button
+                type="button"
+                onClick={handleQuizReview}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+              >
+                <span>Review & Submit</span>
+                <ChevronRight className="w-4 h-4 shrink-0" />
+              </button>
             </div>
           </div>
         )}
@@ -938,7 +1177,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="flex items-center justify-between px-1">
               <span className="text-xs font-bold text-stone-700 tabular-nums">
-                Question {safeOneIndex + 1} of {visibleQuizQuestions.length}
+                Question {safeOneIndex + 1} of {orderedVisibleQuizQuestions.length}
               </span>
               <button
                 type="button"
@@ -954,8 +1193,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 className="bg-stone-900 h-1.5 transition-all duration-300 ease-out"
                 style={{
                   width: `${
-                    visibleQuizQuestions.length > 0
-                      ? ((safeOneIndex + 1) / visibleQuizQuestions.length) * 100
+                    orderedVisibleQuizQuestions.length > 0
+                      ? ((safeOneIndex + 1) / orderedVisibleQuizQuestions.length) * 100
                       : 0
                   }%`,
                 }}
@@ -972,6 +1211,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                   showError={!!validationErrors[oneQuestion.id]}
                   quizResult={oneChecked ? oneResult : null}
                   showQuizFeedback={oneChecked}
+                  displayNumber={safeOneIndex + 1}
                 />
 
                 {oneHint && (
@@ -1076,7 +1316,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         )}
 
-        {/* VIEW 2: FINAL REVIEW & SUBMISSION */}
+        {/* VIEW 2: FINAL REVIEW & SUBMISSION — for quizzes the summary is
+            the same flat shuffled list (no section grouping); Edit jumps
+            back to the flat question list. */}
         {isReviewStep && (
           <ReviewSummary
             sections={sections}
@@ -1089,11 +1331,12 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             setContactPhone={setContactPhone}
             additionalRequirements={additionalRequirements}
             setAdditionalRequirements={setAdditionalRequirements}
-            onJumpToSection={handleJumpToSection}
+            onJumpToSection={isQuiz ? () => setCurrentSectionIndex(0) : handleJumpToSection}
             onSubmit={handleSubmit}
             isSubmitting={isSubmitting}
             submitError={submitError}
             isQuiz={isQuiz}
+            flatQuestions={isQuiz ? orderedVisibleQuizQuestions : undefined}
           />
         )}
       </main>
@@ -1169,9 +1412,11 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         </div>
       )}
 
-      {/* STICKY BOTTOM ACTION BAR — hidden on the quiz mode picker and in
-          one-at-a-time mode, which carry their own buttons. */}
-      {!(isQuiz && quizMode !== 'all') && (
+      {/* STICKY BOTTOM ACTION BAR — requirements questionnaires only.
+          Quiz attempt modes carry their own buttons (flat 'all' view has
+          Review & Submit; one-at-a-time has Check/Next; the review step's
+          submit lives inside ReviewSummary). */}
+      {!isQuiz && (
       <footer className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-md border-t border-stone-200/90 py-2.5 px-3 sm:px-4 pb-safe shadow-lg">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2">

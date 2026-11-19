@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Edit3, Send, AlertCircle, Building2, User, Phone, FileDown, Check } from 'lucide-react';
-import { QuestionnaireSection, QuestionnaireAnswers } from '../types';
+import { QuestionnaireSection, QuestionnaireAnswers, Question } from '../types';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
 import { SectionCompletionChart } from './SectionCompletionChart';
 
@@ -21,6 +21,14 @@ interface ReviewSummaryProps {
   submitError: string | null;
   /** Anonymous quiz: no contact details, no Firestore copy, submit shows the score. */
   isQuiz?: boolean;
+  /**
+   * Quiz attempts answer one flat shuffled sequence (no section grouping),
+   * so the review lists the same questions in that same shuffled order
+   * instead of grouping by section. When set, the per-section chart and
+   * section cards are replaced by this flat list; Edit jumps back to the
+   * flat question list. Requirements questionnaires leave it unset.
+   */
+  flatQuestions?: Question[];
 }
 
 export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
@@ -39,9 +47,33 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
   isSubmitting,
   submitError,
   isQuiz = false,
+  flatQuestions,
 }) => {
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
+
+  // Human-readable answer for one question (shared by the section-grouped
+  // and the flat shuffled summaries).
+  const answerDisplay = (q: Question): string => {
+    const ans = answers[q.id];
+    let displayVal = 'Not answered';
+    if (ans && ans.value !== null && ans.value !== undefined) {
+      if (typeof ans.value === 'boolean') {
+        displayVal = ans.value ? 'Yes' : 'No';
+      } else if (Array.isArray(ans.value)) {
+        displayVal = ans.value.length > 0 ? ans.value.join(', ') : 'None selected';
+      } else {
+        displayVal = String(ans.value);
+      }
+      if (ans.otherText) {
+        displayVal += ` (Other: ${ans.otherText})`;
+      }
+      if (ans.conditionalValue !== undefined && ans.conditionalValue !== null && ans.conditionalValue !== '') {
+        displayVal += ` | Follow-up: ${String(ans.conditionalValue)}`;
+      }
+    }
+    return displayVal;
+  };
 
   const handleDownloadPdf = () => {
     setIsPdfGenerating(true);
@@ -162,12 +194,15 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
         )}
       </div>
 
-      {/* Visual Recharts Progress Chart */}
-      <SectionCompletionChart
-        sections={sections}
-        answers={answers}
-        onJumpToSection={onJumpToSection}
-      />
+      {/* Visual Recharts Progress Chart — not shown for flat quiz reviews:
+          attempt order is one shuffled sequence, not sections. */}
+      {!flatQuestions && (
+        <SectionCompletionChart
+          sections={sections}
+          answers={answers}
+          onJumpToSection={onJumpToSection}
+        />
+      )}
 
       {/* Additional Requirements Textarea — not applicable to anonymous quizzes. */}
       {!isQuiz && (
@@ -188,6 +223,47 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
       </div>
       )}
 
+      {/* Flat shuffled review (quiz attempts): the same questions, in the
+          same shuffled order they were answered — no section grouping.
+          Edit jumps back to the flat question list. */}
+      {flatQuestions ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-stone-600">
+              Summary ({flatQuestions.length} Questions)
+            </h3>
+            <span className="text-xs text-stone-400 font-medium">
+              Tap &apos;Edit&apos; to change
+            </span>
+          </div>
+
+          <div className="bg-white rounded-xl p-4 border border-stone-200/80 shadow-xs">
+            <div className="space-y-2 text-xs">
+              {flatQuestions.map((q, idx) => (
+                <div key={q.id} className="grid grid-cols-1 sm:grid-cols-3 gap-1 items-start">
+                  <span className="font-medium text-stone-600 sm:col-span-1 truncate">
+                    Q{idx + 1}. {q.text || q.title}:
+                  </span>
+                  <span className="text-stone-900 sm:col-span-1 font-normal break-words">
+                    {answerDisplay(q)}
+                  </span>
+                  <span className="sm:col-span-1 sm:text-right">
+                    <button
+                      type="button"
+                      onClick={() => onJumpToSection(0)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer min-h-[36px] active:scale-[0.98]"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Section by Section Review */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
@@ -226,34 +302,13 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
 
             <div className="space-y-2 text-xs">
               {sec.questions.map((q) => {
-                const ans = answers[q.id];
-                let displayVal = 'Not answered';
-
-                if (ans && ans.value !== null && ans.value !== undefined) {
-                  if (typeof ans.value === 'boolean') {
-                    displayVal = ans.value ? 'Yes' : 'No';
-                  } else if (Array.isArray(ans.value)) {
-                    displayVal = ans.value.length > 0 ? ans.value.join(', ') : 'None selected';
-                  } else {
-                    displayVal = String(ans.value);
-                  }
-
-                  if (ans.otherText) {
-                    displayVal += ` (Other: ${ans.otherText})`;
-                  }
-
-                  if (ans.conditionalValue !== undefined && ans.conditionalValue !== null && ans.conditionalValue !== '') {
-                    displayVal += ` | Follow-up: ${String(ans.conditionalValue)}`;
-                  }
-                }
-
                 return (
                   <div key={q.id} className="grid grid-cols-1 sm:grid-cols-3 gap-1">
                     <span className="font-medium text-stone-600 sm:col-span-1 truncate">
                       Q{q.order ?? q.questionNumber ?? ''}. {q.text || q.title}:
                     </span>
                     <span className="text-stone-900 sm:col-span-2 font-normal break-words">
-                      {displayVal}
+                      {answerDisplay(q)}
                     </span>
                   </div>
                 );
@@ -262,6 +317,8 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
           </div>
         ))}
       </div>
+      </>
+      )}
 
       {/* Submit Error Message */}
       {submitError && (

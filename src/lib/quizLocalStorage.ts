@@ -38,6 +38,18 @@ export interface QuizProgress {
   completedResult: QuizResult | null;
   /** When the attempt was completed (ISO timestamp), or null if in progress. */
   completedAt: string | null;
+  /**
+   * Shuffled order for this attempt (attempt modes only; study mode keeps
+   * the original order and never stores these). `questionOrder` is a
+   * permutation of ALL question ids in the quiz (flat, across sections);
+   * `optionOrder` maps questionId -> permutation of that question's option
+   * values. Persisted so a refresh keeps the SAME shuffled order instead
+   * of dealing a new one. A fresh attempt (mode pick / retake / Reset)
+   * deals a fresh shuffle. Null for progress saved before shuffling
+   * existed (old format) — the form deals a fresh order on restore.
+   */
+  questionOrder?: string[] | null;
+  optionOrder?: Record<string, string[]> | null;
   updatedAt: string;
 }
 
@@ -100,6 +112,23 @@ function safeParseCompletedResult(raw: unknown): QuizResult | null {
   };
 }
 
+function safeParseStringArray(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out = raw.filter((v): v is string => typeof v === 'string');
+  return out.length > 0 ? out : null;
+}
+
+function safeParseOptionOrder(raw: unknown): Record<string, string[]> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out: Record<string, string[]> = {};
+  for (const [questionId, entry] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof questionId !== 'string' || !Array.isArray(entry)) continue;
+    const values = entry.filter((v): v is string => typeof v === 'string');
+    if (values.length > 0) out[questionId] = values;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 function safeParse(raw: string | null): QuizProgress | null {
   if (!raw) return null;
   try {
@@ -118,6 +147,10 @@ function safeParse(raw: string | null): QuizProgress | null {
       completedResult: safeParseCompletedResult(parsed.completedResult),
       completedAt:
         typeof parsed.completedAt === 'string' ? parsed.completedAt : null,
+      // Older stored progress has no shuffle fields — default them to null
+      // (the form deals a fresh order when restoring such progress).
+      questionOrder: safeParseStringArray(parsed.questionOrder),
+      optionOrder: safeParseOptionOrder(parsed.optionOrder),
       updatedAt:
         typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     };
@@ -156,6 +189,8 @@ export function mergeQuizProgress(key: string, partial: Partial<QuizProgress>): 
     checked: {} as Record<string, QuizQuestionResult>,
     completedResult: null as QuizResult | null,
     completedAt: null as string | null,
+    questionOrder: null as string[] | null,
+    optionOrder: null as Record<string, string[]> | null,
     updatedAt: new Date().toISOString(),
   };
   saveQuizProgress(key, {
@@ -172,6 +207,8 @@ export function mergeQuizProgress(key: string, partial: Partial<QuizProgress>): 
  * null/undefined otherwise — a stored completed result is NEVER discarded
  * here. Clearing a completed result is done explicitly via
  * clearCompletedQuizResult / clearQuizProgress, never by saving null.
+ * `questionOrder` / `optionOrder` behave the same way: a stored shuffle is
+ * never discarded by an auto-save that omits them.
  */
 export interface QuizProgressState {
   answers: QuestionnaireAnswers;
@@ -180,6 +217,8 @@ export interface QuizProgressState {
   checked: Record<string, QuizQuestionResult>;
   completedResult?: QuizResult | null;
   completedAt?: string | null;
+  questionOrder?: string[] | null;
+  optionOrder?: Record<string, string[]> | null;
 }
 
 /**
@@ -203,6 +242,8 @@ export function saveQuizProgressState(key: string, state: QuizProgressState): vo
     completedAt: state.completedResult
       ? state.completedAt ?? new Date().toISOString()
       : existing?.completedAt ?? null,
+    questionOrder: state.questionOrder ?? existing?.questionOrder ?? null,
+    optionOrder: state.optionOrder ?? existing?.optionOrder ?? null,
     updatedAt: new Date().toISOString(),
   });
 }

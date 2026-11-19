@@ -8,6 +8,10 @@
  *     finished score screen survives refresh, Reset works (in-app confirm).
  *  6. study/review mode (third answer mode: read all correct answers
  *     before attempting; no score, no persistence).
+ *  7. shuffling in the two attempt modes (questions shuffled across the
+ *     whole quiz + options shuffled inside each question, Shuffle button
+ *     re-deals on demand, order persisted in localStorage; study mode and
+ *     requirements questionnaires untouched).
  *
  * Pure-logic + static source checks. No network, no Firestore, no live site.
  * Run: npx tsx scripts/verify-quiz-batch.ts
@@ -24,6 +28,15 @@ import {
   clearQuizProgress,
 } from '../src/lib/quizLocalStorage';
 import { formatQuestionnaireOptionLabel } from '../src/lib/questionnaireService';
+import {
+  shuffleArray,
+  dealQuizShuffle,
+  normalizeQuestionOrder,
+  normalizeOptionOrder,
+  optionValuesForQuestion,
+  orderQuestions,
+  withShuffledOptions,
+} from '../src/lib/quizShuffle';
 import {
   importQuestionnaireFromJson,
   exportQuestionnaireToJsonTemplate,
@@ -347,7 +360,7 @@ console.log('\n[answer modes]');
   check('mode picker offers one-at-a-time option', form.includes('One question at a time'));
   check('one-at-a-time has Check answer button', form.includes('Check answer'));
   check('one-at-a-time ends with See my score', form.includes('See my score'));
-  check('one-at-a-time shows progress (Question N of M)', form.includes('Question ${safeOneIndex + 1} of ${visibleQuizQuestions.length}'));
+  check('one-at-a-time shows progress (Question N of M)', form.includes('Question ${safeOneIndex + 1} of ${orderedVisibleQuizQuestions.length}'));
   check('privacy note visible on quiz form', form.includes('Anonymous quiz — nothing is saved'));
   check('one-at-a-time uses per-question scorer', form.includes('scoreQuestion(oneQuestion'));
   check('one-at-a-time locks after check (feedback flag)', form.includes('showQuizFeedback={oneChecked}'));
@@ -570,7 +583,13 @@ console.log('\n[study mode]');
       !block.includes('scoreQuiz(')
     );
   })());
-  check('study mode is not persisted (storage type unchanged)', !src('src/lib/quizLocalStorage.ts').includes('study') && src('src/lib/quizLocalStorage.ts').includes("export type QuizAnswerMode = 'all' | 'one'"));
+  check('study mode is not persisted (no study field in stored progress)', (() => {
+    const storage = src('src/lib/quizLocalStorage.ts');
+    return (
+      storage.includes("export type QuizAnswerMode = 'all' | 'one'") &&
+      !storage.includes('studyMode')
+    );
+  })());
   check('picking study mode writes nothing (no save/clear calls)', (() => {
     const start = form.indexOf('const handlePickStudyMode');
     const end = form.indexOf('const handleExitStudyMode', start);
@@ -586,6 +605,270 @@ console.log('\n[study mode]');
   check('study mode reveals the key from the question itself', card.includes('answerKeyValues') && card.includes('.filter((o) => o.correct === true)'));
   check('study mode shows the question explanation', card.includes('showStudy && question.explanation'));
   check('study mode locks inputs', card.includes("showFeedback || showStudy ? 'pointer-events-none'"));
+}
+
+// ---------------------------------------------------------------------------
+// 11. Shuffling in the two attempt modes (not study mode, not requirements)
+// ---------------------------------------------------------------------------
+console.log('\n[shuffle]');
+{
+  // Two-section fixture: proves the shuffle is flat across the whole quiz,
+  // not section by section.
+  const twoSectionQuiz: Questionnaire = {
+    id: 'q_two',
+    title: 'Two Section Quiz',
+    description: '',
+    version: 1,
+    status: 'published',
+    quiz: true,
+    showScoreOnSubmit: true,
+    showCorrectAnswers: true,
+    passMark: 60,
+    sections: [
+      {
+        id: 'secA',
+        title: 'Section A',
+        description: '',
+        questions: [
+          {
+            id: 'a1',
+            text: 'A1?',
+            type: 'single_choice',
+            options: [
+              { label: 'A', value: 'a' },
+              { label: 'B', value: 'b', correct: true },
+              { label: 'C', value: 'c' },
+            ],
+          },
+          {
+            id: 'a2',
+            text: 'A2?',
+            type: 'single_choice',
+            options: [
+              { label: 'X', value: 'x', correct: true },
+              { label: 'Y', value: 'y' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'secB',
+        title: 'Section B',
+        description: '',
+        questions: [
+          {
+            id: 'b1',
+            text: 'B1?',
+            type: 'multiple_choice',
+            options: [
+              { label: '1', value: '1', correct: true },
+              { label: '2', value: '2' },
+              { label: '3', value: '3', correct: true },
+            ],
+          },
+          { id: 'b2', text: 'B2?', type: 'yes_no', correctAnswer: false },
+        ],
+      },
+    ],
+  };
+  const allQs = twoSectionQuiz.sections.flatMap((s) => s.questions);
+
+  // Deterministic Fisher-Yates: random() === 0 always swaps with index 0.
+  check('shuffleArray is deterministic with a fixed random source', (() => {
+    const out = shuffleArray(['a', 'b', 'c', 'd'], () => 0);
+    return JSON.stringify(out) === JSON.stringify(['b', 'c', 'd', 'a']);
+  })());
+  check('shuffleArray does not mutate its input', (() => {
+    const input = ['a', 'b', 'c'];
+    const copy = [...input];
+    shuffleArray(input, () => 0);
+    return JSON.stringify(input) === JSON.stringify(copy);
+  })());
+  check('shuffleArray with Math.random is a permutation (same set)', (() => {
+    const out = shuffleArray(allQs.map((q) => q.id));
+    const sorted = [...out].sort();
+    return out.length === 4 && JSON.stringify(sorted) === JSON.stringify(['a1', 'a2', 'b1', 'b2']);
+  })());
+
+  // dealQuizShuffle: flat across sections + per-question option orders.
+  const dealt = dealQuizShuffle(allQs, () => 0);
+  check('dealt question order covers all questions across both sections', (() => {
+    const sorted = [...dealt.questionOrder].sort();
+    return JSON.stringify(sorted) === JSON.stringify(['a1', 'a2', 'b1', 'b2']);
+  })(), JSON.stringify(dealt.questionOrder));
+  check('dealt question order is not section order', JSON.stringify(dealt.questionOrder) !== JSON.stringify(['a1', 'a2', 'b1', 'b2']), JSON.stringify(dealt.questionOrder));
+  check('dealt option orders are permutations of each question options', (() => {
+    const a1 = dealt.optionOrder.a1;
+    const b1 = dealt.optionOrder.b1;
+    return (
+      !!a1 && [...a1].sort().join(',') === 'a,b,c' &&
+      !!b1 && [...b1].sort().join(',') === '1,2,3'
+    );
+  })(), JSON.stringify(dealt.optionOrder));
+  check('yes_no question gets an option order too (may swap)', (() => {
+    const b2 = dealt.optionOrder.b2;
+    return !!b2 && [...b2].sort().join(',') === 'false,true';
+  })(), JSON.stringify(dealt.optionOrder.b2));
+  check('yes_no without options defaults to the true/false pair', (() => {
+    const values = optionValuesForQuestion(allQs[3]);
+    return JSON.stringify(values) === JSON.stringify(['true', 'false']);
+  })());
+  check('yes_no display copy can put No first (synthesized pair)', (() => {
+    const display = withShuffledOptions(allQs[3], ['false', 'true']);
+    return (display.options || []).map((o) => o.value).join(',') === 'false,true' &&
+      (display.options || [])[0].label === 'No';
+  })());
+  check('yes_no display copy keeps default labels when unshuffled', (() => {
+    const display = withShuffledOptions(allQs[3], ['true', 'false']);
+    return (display.options || []).map((o) => o.label).join(',') === 'Yes,No';
+  })());
+
+  // Correct flag travels with its option object through the reorder.
+  check('correct flag travels with its option after reordering', (() => {
+    const q = allQs[0];
+    const display = withShuffledOptions(q, dealt.optionOrder[q.id]);
+    const correct = (display.options || []).filter((o) => o.correct === true);
+    return correct.length === 1 && correct[0].value === 'b' && correct[0].label === 'B';
+  })());
+  check('scoring a shuffled display copy gives the same result', (() => {
+    const q = allQs[0];
+    const display = withShuffledOptions(q, dealt.optionOrder[q.id]);
+    const s1 = scoreQuestion(q, { value: 'b' });
+    const s2 = scoreQuestion(display, { value: 'b' });
+    return s1.correct && s2.correct && s1.earned === s2.earned && s2.correctLabels.join(',') === 'B';
+  })());
+  check('withShuffledOptions returns the same reference when order matches', (() => {
+    const q = allQs[0];
+    return withShuffledOptions(q, ['a', 'b', 'c']) === q;
+  })());
+
+  // orderQuestions: stored order wins; unlisted questions slot in at the
+  // end in canonical order (e.g. a conditionally-hidden question that
+  // becomes visible mid-attempt).
+  check('orderQuestions applies a stored order', (() => {
+    const out = orderQuestions(allQs, ['b2', 'a1', 'b1', 'a2']);
+    return out.map((q) => q.id).join(',') === 'b2,a1,b1,a2';
+  })());
+  check('orderQuestions appends unlisted questions at the end (canonical)', (() => {
+    const out = orderQuestions(allQs, ['b1']);
+    return out.map((q) => q.id).join(',') === 'b1,a1,a2,b2';
+  })());
+  check('orderQuestions with no order keeps canonical order', (() => {
+    const out = orderQuestions(allQs, null);
+    return out.map((q) => q.id).join(',') === 'a1,a2,b1,b2';
+  })());
+
+  // Normalization: drops unknown ids/values, appends missing ones.
+  check('normalizeQuestionOrder drops unknown ids and appends missing', (() => {
+    const out = normalizeQuestionOrder(['b2', 'zzz', 'a1'], ['a1', 'a2', 'b1', 'b2']);
+    return JSON.stringify(out) === JSON.stringify(['b2', 'a1', 'a2', 'b1']);
+  })());
+  check('normalizeOptionOrder drops unknown values and appends missing', (() => {
+    const out = normalizeOptionOrder(['c', 'nope', 'a'], optionValuesForQuestion(allQs[0]));
+    return JSON.stringify(out) === JSON.stringify(['c', 'a', 'b']);
+  })());
+
+  // Persistence: order survives save/load; old-format progress has nulls.
+  const key = getQuizProgressKey('q_two', 'proj_1');
+  saveQuizProgress(key, {
+    answers: { a1: { value: 'b' } }, mode: 'one', oneIndex: 1,
+    checked: {}, completedResult: null, completedAt: null,
+    questionOrder: dealt.questionOrder, optionOrder: dealt.optionOrder,
+    updatedAt: '',
+  });
+  const loaded = loadQuizProgress(key);
+  check('shuffled order round-trips through localStorage', !!loaded &&
+    JSON.stringify(loaded.questionOrder) === JSON.stringify(dealt.questionOrder) &&
+    JSON.stringify(loaded.optionOrder?.a1) === JSON.stringify(dealt.optionOrder.a1),
+  JSON.stringify(loaded?.questionOrder));
+  check('old-format progress loads with null shuffle fields', (() => {
+    store.set(key, JSON.stringify({ answers: {}, mode: 'one', oneIndex: 0, updatedAt: '' }));
+    const l = loadQuizProgress(key);
+    return !!l && l.questionOrder === null && l.optionOrder === null;
+  })());
+  check('merge-preserve save keeps a stored shuffle when state omits it', (() => {
+    saveQuizProgress(key, {
+      answers: {}, mode: 'one', oneIndex: 0, checked: {}, completedResult: null, completedAt: null,
+      questionOrder: dealt.questionOrder, optionOrder: dealt.optionOrder, updatedAt: '',
+    });
+    saveQuizProgressState(key, {
+      answers: { a1: { value: 'b' } }, mode: 'one', oneIndex: 1, checked: {},
+      completedResult: undefined, completedAt: undefined,
+    });
+    const l = loadQuizProgress(key);
+    return !!l && JSON.stringify(l.questionOrder) === JSON.stringify(dealt.questionOrder);
+  })());
+
+  // Reshuffle keeps answers + checked state (keyed by questionId), and the
+  // one-at-a-time resume rule lands on the first unanswered question.
+  check('reshuffle keeps answers and checked results (keyed by id)', (() => {
+    const r1 = scoreQuestion(allQs[0], { value: 'b' });
+    const before = { answers: { a1: { value: 'b' } }, checked: { a1: r1 } };
+    const fresh = dealQuizShuffle(allQs, () => 0.9);
+    // The respondent's stored answers/checked are untouched by re-dealing:
+    // they are maps keyed by questionId, never by position.
+    return (
+      before.answers.a1.value === 'b' &&
+      before.checked.a1.correct === true &&
+      JSON.stringify([...fresh.questionOrder].sort()) === JSON.stringify(['a1', 'a2', 'b1', 'b2'])
+    );
+  })());
+  check('resume after reshuffle lands on the first unanswered question', (() => {
+    const answers: QuestionnaireAnswers = { a1: { value: 'b' }, b2: { value: false } };
+    const order = ['a2', 'b1', 'a1', 'b2'];
+    const ordered = orderQuestions(allQs, order);
+    const firstUnanswered = ordered.findIndex((q) => {
+      const a = answers[q.id];
+      return !a || a.value === null || a.value === undefined || a.value === '';
+    });
+    return firstUnanswered === 0 && ordered[firstUnanswered].id === 'a2';
+  })());
+  check('resume stays on the last question when everything is answered', (() => {
+    const answers: QuestionnaireAnswers = {
+      a1: { value: 'b' }, a2: { value: 'x' }, b1: { value: ['1', '3'] }, b2: { value: false },
+    };
+    const order = ['a2', 'b1', 'a1', 'b2'];
+    const ordered = orderQuestions(allQs, order);
+    const firstUnanswered = ordered.findIndex((q) => {
+      const a = answers[q.id];
+      return !a || a.value === null || a.value === undefined || a.value === '';
+    });
+    const idx = firstUnanswered === -1 ? Math.max(ordered.length - 1, 0) : firstUnanswered;
+    return firstUnanswered === -1 && idx === 3 && ordered[idx].id === 'b2';
+  })());
+  clearQuizProgress(key);
+
+  // Static wiring.
+  const form = src('src/components/QuestionnaireForm.tsx');
+  const card = src('src/components/QuestionCard.tsx');
+  const review = src('src/components/ReviewSummary.tsx');
+  check('mode pick deals a fresh shuffle', form.includes('handlePickQuizMode') && form.includes('dealQuizShuffle('));
+  check('Shuffle button exists for attempt modes (not study mode)', form.includes('handleShuffle') && form.includes('Shuffle') && form.includes("quizMode !== null && !studyMode"));
+  check('Shuffle button re-deals questions and options', (() => {
+    const start = form.indexOf('const handleShuffle');
+    const end = form.indexOf('const handlePickStudyMode', start);
+    const block = form.slice(start, end);
+    return block.includes('dealQuizShuffle(') && block.includes('setQuestionOrder(') && block.includes('setOptionOrder(');
+  })());
+  check('reshuffle resumes at the first unanswered question', form.includes('firstUnanswered') && form.includes('Math.max(ordered.length - 1, 0)'));
+  check('sectioned view is requirements-only (quiz attempts are flat)', form.includes('!isReviewStep && currentSection && !isQuiz'));
+  check('quiz all-mode view is a flat shuffled list', form.includes("QUIZ 'ALL' VIEW") && form.includes('orderedVisibleQuizQuestions.map((question, idx)'));
+  check('one-at-a-time uses the ordered list', form.includes('orderedVisibleQuizQuestions[safeOneIndex]'));
+  check('shuffle order is auto-saved with progress', form.includes('questionOrder: questionOrder ?? undefined') && form.includes('optionOrder: optionOrder ?? undefined'));
+  check('submit persists the shuffle order', form.includes('questionOrder: questionOrder ?? null'));
+  check('Reset clears the shuffle order', form.includes('setQuestionOrder(null)') && form.includes('setOptionOrder(null)'));
+  check('study view keeps original order (no shuffle wiring)', (() => {
+    const start = form.indexOf('QUIZ STUDY MODE');
+    const end = form.indexOf('VIEW 2: FINAL REVIEW', start);
+    const block = form.slice(start, end);
+    return block.includes('sections.map((sec)') && !block.includes('handleShuffle') && !block.includes('Shuffle');
+  })());
+  check('review step lists quiz questions flat in shuffled order', form.includes('flatQuestions={isQuiz ? orderedVisibleQuizQuestions : undefined}'));
+  check('QuestionCard accepts displayNumber (shuffled position badge)', card.includes('displayNumber?: number') && card.includes('displayNumber ?? question.order'));
+  check('QuestionCard orders yes/no buttons by the options list', card.includes('yesNoOrder') && card.includes('noIdx < yesIdx ? [false, true] : [true, false]'));
+  check('ReviewSummary supports a flat shuffled summary', review.includes('flatQuestions?: Question[]') && review.includes('Summary ({flatQuestions.length} Questions)'));
+  check('ReviewSummary hides the section chart for flat reviews', review.includes('{!flatQuestions && (') && review.includes('SectionCompletionChart'));
+  check('non-quiz flow still uses the sectioned view + footer', form.includes('VIEW 1: ACTIVE SECTION QUESTIONS') && form.includes('{!isQuiz && (') && review.includes('Summary by Section'));
 }
 
 // ---------------------------------------------------------------------------
