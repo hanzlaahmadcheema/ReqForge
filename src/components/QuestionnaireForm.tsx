@@ -36,6 +36,8 @@ import {
   getQuizProgressKey,
   loadQuizProgress,
   saveQuizProgress,
+  saveQuizProgressState,
+  clearCompletedQuizResult,
   clearQuizProgress,
   type QuizAnswerMode,
   type QuizProgress,
@@ -146,8 +148,15 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const [oneHint, setOneHint] = useState<string | null>(null);
   // Completed quiz result (score + review) for this attempt. Set at submit
   // time and persisted to local storage so a refresh restores the score
-  // screen instead of dropping back to the mode picker.
-  const [completedQuizResult, setCompletedQuizResult] = useState<QuizResult | null>(null);
+  // screen instead of dropping back to the mode picker. Restored from the
+  // saved progress on mount, like answers/mode/index/checked: initializing
+  // this to null unconditionally meant the mount auto-save overwrote the
+  // stored result with null before App/Portal's restore effect could read
+  // it (child effects run before parent effects), so a refresh always lost
+  // the score screen even though submit had saved it correctly.
+  const [completedQuizResult, setCompletedQuizResult] = useState<QuizResult | null>(
+    restoredQuizProgress?.completedResult ?? null
+  );
   // In-app Reset confirmation dialog (a native window.confirm is silently
   // dismissed by automated browsers, which made Reset look broken).
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
@@ -236,16 +245,19 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   // Persists answers, mode, index, per-question check results and the
   // completed score, so a refresh resumes exactly where the respondent left
   // off — including a finished score screen.
+  //
+  // Uses the merge-preserve save: this effect runs on mount, before the
+  // parent (App / PublicFormPortal) restore effect reads the stored score,
+  // so it must never overwrite a stored completed result with null.
   useEffect(() => {
     if (!isQuiz || isPreview) return;
-    saveQuizProgress(quizProgressKey, {
+    saveQuizProgressState(quizProgressKey, {
       answers,
       mode: quizMode,
       oneIndex,
       checked: checkedResults,
-      completedResult: completedQuizResult,
-      completedAt: completedQuizResult ? new Date().toISOString() : null,
-      updatedAt: new Date().toISOString(),
+      completedResult: completedQuizResult ?? undefined,
+      completedAt: completedQuizResult ? new Date().toISOString() : undefined,
     });
   }, [answers, quizMode, oneIndex, checkedResults, completedQuizResult, isQuiz, isPreview, quizProgressKey]);
 
@@ -258,15 +270,15 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     if (isQuiz) {
       // Anonymous quiz: a "draft" lives in this browser only — nothing is
       // written to Firestore (the buttons that call this are hidden for
-      // quizzes; this is a guard for any other caller).
-      saveQuizProgress(quizProgressKey, {
+      // quizzes; this is a guard for any other caller). Merge-preserve save:
+      // must never overwrite a stored completed result with null.
+      saveQuizProgressState(quizProgressKey, {
         answers,
         mode: quizMode,
         oneIndex,
         checked: checkedResults,
-        completedResult: completedQuizResult,
-        completedAt: completedQuizResult ? new Date().toISOString() : null,
-        updatedAt: new Date().toISOString(),
+        completedResult: completedQuizResult ?? undefined,
+        completedAt: completedQuizResult ? new Date().toISOString() : undefined,
       });
       setDraftSaveSuccess(true);
       setTimeout(() => setDraftSaveSuccess(false), 3000);
@@ -532,6 +544,12 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   };
 
   const handlePickQuizMode = (mode: QuizAnswerMode) => {
+    // Picking a mode starts a fresh attempt: drop any previously completed
+    // score (state + storage) so it can never resurface on a later refresh.
+    // The merge-preserve auto-save would otherwise keep a stale stored
+    // result alive after this. In-progress answers/checked state are kept.
+    setCompletedQuizResult(null);
+    clearCompletedQuizResult(quizProgressKey);
     setQuizMode(mode);
     setOneIndex(0);
     setOneChecked(false);

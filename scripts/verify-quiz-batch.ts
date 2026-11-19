@@ -16,6 +16,8 @@ import {
   getQuizProgressKey,
   loadQuizProgress,
   saveQuizProgress,
+  saveQuizProgressState,
+  clearCompletedQuizResult,
   mergeQuizProgress,
   clearQuizProgress,
 } from '../src/lib/quizLocalStorage';
@@ -415,6 +417,111 @@ console.log('\n[progress-saving gaps]');
   check('Reset opens an in-app confirmation dialog', form.includes('setShowResetConfirm(true)') && form.includes('Reset this {isQuiz ?'));
   check('Reset confirm clears answers + checked map + completed result', form.includes('setCheckedResults({})') && form.includes('setCompletedQuizResult(null)'));
   check('Reset confirm clears local progress', form.includes('handleConfirmClearForm') && form.includes('clearQuizProgress(quizProgressKey)'));
+}
+
+// ---------------------------------------------------------------------------
+// 9. Mount/restore sequence — finished score screen survives refresh
+//    (live bug: the form's mount auto-save overwrote the stored completed
+//    result with null before App/Portal's restore effect could read it,
+//    because completedQuizResult was never restored into state and child
+//    effects run before parent effects. The d4d42132 test only checked the
+//    storage round-trip, so it passed while live failed 3x. This section
+//    replays the exact save -> mount -> parent-restore sequence with the
+//    real storage helpers.)
+// ---------------------------------------------------------------------------
+console.log('\n[mount/restore sequence: score screen survives refresh]');
+{
+  const key = getQuizProgressKey('q_test', 'proj_1');
+  const done = scoreQuiz(quiz, allCorrect)!;
+  const r1 = scoreQuestion(quiz.sections[0].questions[0], { value: '4' });
+
+  // Step 1 — submit, exactly as QuestionnaireForm.handleSubmit does.
+  saveQuizProgress(key, {
+    answers: allCorrect, mode: 'one', oneIndex: 1,
+    checked: { q1: r1 },
+    completedResult: done,
+    completedAt: '2026-11-19T00:00:00.000Z', updatedAt: '',
+  });
+
+  // Step 2 — form mount: lazy init loads the stored progress, state is
+  // derived from it (FIXED: completedQuizResult comes from the restore),
+  // then the mount auto-save runs exactly as the effect does.
+  const restored = loadQuizProgress(key);
+  const mountState = {
+    answers: restored?.answers ?? {},
+    mode: restored?.mode ?? null,
+    oneIndex: restored?.oneIndex ?? 0,
+    checked: restored?.checked ?? {},
+    completedResult: restored?.completedResult ?? null, // <-- the fix (was `null`)
+    completedAt: restored?.completedAt ?? null,
+  };
+  saveQuizProgressState(key, {
+    ...mountState,
+    completedResult: mountState.completedResult ?? undefined,
+    completedAt: mountState.completedAt ?? undefined,
+  });
+  const afterMount = loadQuizProgress(key);
+  check('mount auto-save does not wipe the stored completed result', !!afterMount?.completedResult && afterMount.completedResult.earned === 5 && afterMount.completedResult.passed === true, JSON.stringify(afterMount?.completedResult));
+  check('mount auto-save keeps answers + checked feedback', !!afterMount && afterMount.checked.q1?.correct === true && afterMount.answers.q1?.value === '4');
+
+  // Step 3 — parent restore (App/Portal effect): reads the stored progress
+  // and decides whether to show the score screen instead of the form.
+  const parentRead = loadQuizProgress(key);
+  check('parent restore sees the completed result and shows the score screen', !!parentRead?.completedResult && parentRead.completedResult.earned === 5 && parentRead.completedResult.percent === 100);
+
+  // Regression proof: the OLD mount behavior (completedQuizResult
+  // unconditionally null + plain overwrite save) wipes the result. This is
+  // what the d4d42132 code did — and why live refresh lost the score screen
+  // while the round-trip test passed.
+  saveQuizProgress(key, {
+    answers: allCorrect, mode: 'one', oneIndex: 1,
+    checked: { q1: r1 },
+    completedResult: done,
+    completedAt: '2026-11-19T00:00:00.000Z', updatedAt: '',
+  });
+  const oldMount = loadQuizProgress(key);
+  saveQuizProgress(key, {
+    answers: oldMount?.answers ?? {},
+    mode: oldMount?.mode ?? null,
+    oneIndex: oldMount?.oneIndex ?? 0,
+    checked: oldMount?.checked ?? {},
+    completedResult: null, // OLD BUG: state always initialized to null
+    completedAt: null,
+    updatedAt: new Date().toISOString(),
+  });
+  check('OLD mount behavior wipes the completed result (proves this test guards the bug)', loadQuizProgress(key)?.completedResult === null);
+
+  // Mount with NO completed result (mid-attempt refresh) must not invent one.
+  saveQuizProgress(key, {
+    answers: allCorrect, mode: 'one', oneIndex: 1,
+    checked: { q1: r1 },
+    completedResult: null, completedAt: null, updatedAt: '',
+  });
+  saveQuizProgressState(key, {
+    answers: allCorrect, mode: 'one', oneIndex: 1, checked: { q1: r1 },
+    completedResult: undefined, completedAt: undefined,
+  });
+  check('mid-attempt mount does not invent a completed result', loadQuizProgress(key)?.completedResult === null);
+
+  // Retake / mode-pick clearing still works and never resurrects.
+  saveQuizProgress(key, { answers: allCorrect, mode: 'one', oneIndex: 1, checked: { q1: r1 }, completedResult: done, completedAt: '2026-11-19T00:00:00.000Z', updatedAt: '' });
+  clearCompletedQuizResult(key);
+  const afterPick = loadQuizProgress(key);
+  check('picking a mode clears only the completed result (answers kept)', !!afterPick && afterPick.completedResult === null && afterPick.completedAt === null && afterPick.answers.q1?.value === '4' && afterPick.mode === 'one');
+  check('picking a mode then mounting does not resurrect the result', (() => {
+    const r = loadQuizProgress(key);
+    saveQuizProgressState(key, { answers: r?.answers ?? {}, mode: r?.mode ?? null, oneIndex: r?.oneIndex ?? 0, checked: r?.checked ?? {}, completedResult: undefined, completedAt: undefined });
+    return loadQuizProgress(key)?.completedResult === null;
+  })());
+  clearQuizProgress(key);
+  check('retake clears all progress', loadQuizProgress(key) === null);
+
+  // Static wiring: the component must use the fixed paths.
+  const form = src('src/components/QuestionnaireForm.tsx');
+  check('form initializes completedQuizResult from restored progress', form.includes('restoredQuizProgress?.completedResult ?? null'));
+  check('form auto-save uses the merge-preserve helper', form.includes('saveQuizProgressState(quizProgressKey, {'));
+  check('form never overwrites with completedResult: completedQuizResult', !form.includes('completedResult: completedQuizResult,'));
+  check('mode pick clears the stored completed result', form.includes('clearCompletedQuizResult(quizProgressKey)'));
 }
 
 // ---------------------------------------------------------------------------

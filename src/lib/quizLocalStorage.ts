@@ -166,6 +166,58 @@ export function mergeQuizProgress(key: string, partial: Partial<QuizProgress>): 
   });
 }
 
+/**
+ * In-progress state for the form's auto-save effect. `completedResult` is
+ * the result of the CURRENT attempt only: pass it when one exists, leave it
+ * null/undefined otherwise — a stored completed result is NEVER discarded
+ * here. Clearing a completed result is done explicitly via
+ * clearCompletedQuizResult / clearQuizProgress, never by saving null.
+ */
+export interface QuizProgressState {
+  answers: QuestionnaireAnswers;
+  mode: QuizAnswerMode | null;
+  oneIndex: number;
+  checked: Record<string, QuizQuestionResult>;
+  completedResult?: QuizResult | null;
+  completedAt?: string | null;
+}
+
+/**
+ * Saves in-progress quiz state without ever discarding a stored completed
+ * result. This matters because the form's auto-save effect runs on mount —
+ * and React runs child effects before the parent (App / PublicFormPortal)
+ * restore effect that reads the stored score. A plain overwrite with
+ * completedResult: null on mount would wipe the finished score screen
+ * before the parent ever gets to restore it (the live bug: after a refresh
+ * the quiz resumed at the last answered question instead of the score
+ * screen, even though the result had been saved correctly at submit time).
+ */
+export function saveQuizProgressState(key: string, state: QuizProgressState): void {
+  const existing = loadQuizProgress(key);
+  saveQuizProgress(key, {
+    answers: state.answers,
+    mode: state.mode,
+    oneIndex: state.oneIndex,
+    checked: state.checked,
+    completedResult: state.completedResult ?? existing?.completedResult ?? null,
+    completedAt: state.completedResult
+      ? state.completedAt ?? new Date().toISOString()
+      : existing?.completedAt ?? null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Drops only the completed score from stored progress (respondent picks an
+ * answer mode to start a fresh attempt). Answers/mode/index/checked are
+ * kept, so this never disturbs an in-progress attempt.
+ */
+export function clearCompletedQuizResult(key: string): void {
+  const existing = loadQuizProgress(key);
+  if (!existing) return;
+  saveQuizProgress(key, { ...existing, completedResult: null, completedAt: null });
+}
+
 /** Deletes a quiz attempt's local progress (called on retake / Reset, so the next attempt starts fresh). */
 export function clearQuizProgress(key: string): void {
   try {
