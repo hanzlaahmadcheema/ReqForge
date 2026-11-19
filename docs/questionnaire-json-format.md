@@ -13,6 +13,10 @@ The blank, reusable template is located at:
 questionnaire
  ├── title (string, required)
  ├── description (string, optional)
+ ├── quiz (boolean, optional — set true to make this a scored quiz/assessment)
+ ├── show_score_on_submit (boolean, optional — quiz only)
+ ├── show_correct_answers (boolean, optional — quiz only)
+ ├── pass_mark (number 0-100, optional — quiz only)
  └── sections (array of section objects, required)
       ├── section_title (string, required)
       ├── section_description (string, optional)
@@ -23,7 +27,7 @@ questionnaire
            ├── required (boolean, optional, default: false)
            ├── placeholder (string, optional)
            ├── description (string, optional)
-           ├── options (array of strings or {label, value} objects, for choice types)
+           ├── options (array of strings or {label, value, correct?} objects, for choice types)
            ├── allow_other (boolean, optional, default: false)
            ├── allow_none (boolean, optional, default: false)
            ├── unit (string, optional, for number type)
@@ -33,6 +37,9 @@ questionnaire
            ├── max_length (number, optional, for text/textarea)
            ├── true (string, optional, for yes_no custom label)
            ├── false (string, optional, for yes_no custom label)
+           ├── points (number, optional, quiz only — default 1)
+           ├── explanation (string, optional, quiz only — shown after submit)
+           ├── correct_answer (boolean, optional, quiz only — for yes_no)
            └── conditional (object, optional)
                 ├── question_id (string, required)
                 └── answer (string | boolean | number, required)
@@ -49,6 +56,10 @@ questionnaire
 | `title` | `string` | **Yes** | The public display title of the questionnaire (e.g., "ERP System Requirements"). |
 | `description` | `string` | No | A high-level description or instructions for respondents. Defaults to empty string. |
 | `sections` | `array` | **Yes** | Array of section objects. Must contain at least one section. |
+| `quiz` | `boolean` | No | Set `true` to make this questionnaire a scored quiz/assessment (see Section 4.5). Non-quiz questionnaires behave exactly as before. |
+| `show_score_on_submit` | `boolean` | No | Quiz only. When `true` (default for quizzes), the respondent sees their score right after submitting. |
+| `show_correct_answers` | `boolean` | No | Quiz only. When `true` (default for quizzes), the respondent sees per-question correct/incorrect marking and explanations. |
+| `pass_mark` | `number` | No | Quiz only. Pass threshold as a percentage (0–100). When set, the result shows Passed/Failed; when omitted, no pass/fail is shown. |
 
 ---
 
@@ -82,6 +93,9 @@ questionnaire
 | `max_length` | `number` | No | `text`, `textarea` | Maximum character length constraint. |
 | `true` | `string` | No | `yes_no` | Custom label for affirmative choice (defaults to `"Yes"`). |
 | `false` | `string` | No | `yes_no` | Custom label for negative choice (defaults to `"No"`). |
+| `points` | `number` | No | `single_choice`, `multiple_choice`, `yes_no` (quiz only) | Points awarded for a correct answer. Defaults to `1`. Must be `>= 0`. |
+| `explanation` | `string` | No | `single_choice`, `multiple_choice`, `yes_no` (quiz only) | Explanation shown to the respondent after submitting. |
+| `correct_answer` | `boolean` | No | `yes_no` (quiz only) | The correct answer for a quiz yes/no question (`true` = "Yes" is correct). Required for quiz `yes_no` questions. |
 | `conditional` | `object` | No | All types | Conditional display rule (see Section 5). |
 
 ---
@@ -104,6 +118,10 @@ questionnaire
 > [!WARNING]
 > **Disallowed Types:**
 > The `rating` question type is intentionally not supported in software requirements discovery and will fail validation during import.
+
+> [!NOTE]
+> **Quiz / Assessment Mode:**
+> Only `single_choice`, `multiple_choice`, and `yes_no` questions can be scored. Set `"quiz": true` at the questionnaire level (see Section 4.5). All other question types in a quiz are shown but never count toward the score.
 
 ---
 
@@ -176,6 +194,56 @@ The importer maintains **100% backward compatibility** with legacy V1 questionna
 
 Existing stored questionnaires and historical JSON files continue to work without modification.
 
+### 4.5 Quiz / Assessment Mode
+Set `"quiz": true` at the questionnaire level to turn a questionnaire into a scored quiz or assessment. The respondent sees their score (earned/total, percentage, and Passed/Failed when a `pass_mark` is set) immediately after submitting, plus per-question correct/incorrect marking and explanations. Admins see the same score on each submission. Drafts are never scored — the score is computed at submit time only.
+
+```json
+{
+  "questionnaire": {
+    "title": "General Knowledge Quiz",
+    "quiz": true,
+    "show_score_on_submit": true,
+    "show_correct_answers": true,
+    "pass_mark": 70,
+    "sections": [
+      {
+        "section_title": "Section 1",
+        "questions": [
+          {
+            "question_id": "q1",
+            "question": "What is 2 + 2?",
+            "type": "single_choice",
+            "required": true,
+            "points": 2,
+            "options": [
+              { "label": "3", "value": "3" },
+              { "label": "4", "value": "4", "correct": true },
+              { "label": "5", "value": "5" }
+            ],
+            "explanation": "2 + 2 = 4."
+          },
+          {
+            "question_id": "q2",
+            "question": "Is the sky blue?",
+            "type": "yes_no",
+            "points": 1,
+            "correct_answer": true
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+**Scoring rules:**
+- Mark correct options with `"correct": true` on option objects. Plain string options are never correct.
+- `single_choice`: exactly one option must be marked correct. `multiple_choice`: at least one option must be marked correct (several allowed — scored **all-or-nothing**: full points only when the selected set exactly matches the correct set).
+- `yes_no` questions cannot use option-level `correct` (their options are derived from the `true`/`false` labels), so they use question-level `"correct_answer": true/false`.
+- `points` defaults to `1` when omitted. Questions of other types (`text`, `number`, `date`, etc.) are shown but never scored.
+- Conditionally-hidden questions (see Section 5) are excluded from the total.
+- Quiz questionnaires are excluded from the AI requirements/gap analysis.
+
 ---
 
 ## 5. Conditional Questions
@@ -222,6 +290,10 @@ The application validates the JSON template before importing:
 8. Single-choice questions must have at least two options.
 9. Multiple-choice questions must have at least one option.
 10. If `conditional` is defined, its `question_id` must reference an existing question, and cannot reference itself.
+11. `pass_mark`, when provided, must be a percentage between 0 and 100.
+12. `points`, when provided, must be a number `>= 0`.
+13. In a quiz (`"quiz": true`), every `single_choice` question must have exactly one option marked `"correct": true`, and every `multiple_choice` question must have at least one option marked `"correct": true`. A quiz question with no correct option fails validation.
+14. In a quiz, every `yes_no` question must specify `"correct_answer": true` or `false`.
 
 Error messages clearly pinpoint the section, question, and issue:
 > `Section 2 ("Technical Scope") -> Question 3 ("pos_type"): Single choice questions require at least 2 options (e.g. "options": ["Option 1", "Option 2"]).`

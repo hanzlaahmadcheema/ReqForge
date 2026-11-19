@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { CheckCircle, Copy, Check, FileDown, RotateCcw, Database, FileText } from 'lucide-react';
-import { QuestionnaireAnswers, QuestionnaireSection } from '../types';
+import { CheckCircle, CheckCircle2, XCircle, Copy, Check, FileDown, RotateCcw, Database, FileText, Trophy } from 'lucide-react';
+import { QuestionnaireAnswers, QuestionnaireSection, Questionnaire } from '../types';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
 import { copyToClipboard } from '../lib/clipboardUtils';
+import type { QuizResult } from '../lib/quizScoring';
 
 interface SuccessViewProps {
   docId: string;
@@ -12,6 +13,8 @@ interface SuccessViewProps {
   sections: QuestionnaireSection[];
   answers: QuestionnaireAnswers;
   additionalRequirements: string;
+  quizResult?: QuizResult | null;
+  questionnaire?: Questionnaire | null;
   onReset: () => void;
 }
 
@@ -23,10 +26,18 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   sections,
   answers,
   additionalRequirements,
+  quizResult = null,
+  questionnaire = null,
   onReset,
 }) => {
   const [copied, setCopied] = useState(false);
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+
+  // Quiz display rules: the respondent sees the score right after submitting
+  // unless the questionnaire explicitly hides it.
+  const isQuiz = !!quizResult;
+  const showScore = isQuiz && questionnaire?.showScoreOnSubmit !== false;
+  const showAnswers = isQuiz && questionnaire?.showCorrectAnswers !== false;
 
   const handleDownloadPdf = () => {
     setIsPdfGenerating(true);
@@ -39,6 +50,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         additionalRequirements,
         isSubmitted: true,
         submissionDocId: docId,
+        quizResult: quizResult || undefined,
       });
     } catch (err) {
       console.error('Failed to generate PDF:', err);
@@ -66,6 +78,25 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     content += `Firestore Document ID: ${docId}\n`;
     content += `Firestore Collection: submissions\n`;
     content += `Submitted At: ${new Date().toLocaleString()}\n\n`;
+
+    if (quizResult) {
+      content += `-----------------------------------------------------\n`;
+      content += `QUIZ SCORE\n`;
+      content += `-----------------------------------------------------\n\n`;
+      content += `Score: ${quizResult.earned} / ${quizResult.total} (${quizResult.percent}%)\n`;
+      if (quizResult.passMark !== undefined) {
+        content += `Pass Mark: ${quizResult.passMark}% — ${quizResult.passed ? 'PASSED' : 'FAILED'}\n`;
+      }
+      content += `\n`;
+      quizResult.perQuestion.forEach((pq, idx) => {
+        content += `  Q${idx + 1}. ${pq.questionText}\n`;
+        content += `    Your answer: ${pq.userLabel ?? 'Not answered'}\n`;
+        content += `    Correct answer: ${pq.correctLabels.join(', ') || '—'}\n`;
+        content += `    Result: ${pq.correct ? 'Correct' : 'Incorrect'} (${pq.earned}/${pq.points} pts)\n`;
+        if (pq.explanation) content += `    Explanation: ${pq.explanation}\n`;
+        content += `\n`;
+      });
+    }
     content += `-----------------------------------------------------\n`;
     content += `SUBMITTED ANSWERS\n`;
     content += `-----------------------------------------------------\n\n`;
@@ -109,11 +140,63 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       </div>
 
       <h2 className="text-2xl font-bold text-stone-900 tracking-tight">
-        Questionnaire Submitted!
+        {isQuiz ? 'Quiz Submitted!' : 'Questionnaire Submitted!'}
       </h2>
       <p className="text-sm text-stone-600 mt-2 max-w-md mx-auto">
-        Your client requirements answers have been safely saved directly into Firebase Firestore.
+        {isQuiz
+          ? 'Your answers have been scored and safely saved directly into Firebase Firestore.'
+          : 'Your client requirements answers have been safely saved directly into Firebase Firestore.'}
       </p>
+
+      {/* Quiz Score Banner */}
+      {showScore && quizResult && (
+        <div
+          className={`mt-6 rounded-2xl p-5 border text-left shadow-xs ${
+            quizResult.passMark !== undefined && !quizResult.passed
+              ? 'bg-rose-50 border-rose-200'
+              : 'bg-emerald-50 border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                quizResult.passMark !== undefined && !quizResult.passed
+                  ? 'bg-rose-100 text-rose-700'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                Your Score
+              </p>
+              <p className="text-2xl font-black text-stone-900 tabular-nums leading-tight">
+                {quizResult.earned} / {quizResult.total}
+                <span className="text-base font-bold text-stone-500 ml-2">
+                  ({quizResult.percent}%)
+                </span>
+              </p>
+            </div>
+            {quizResult.passMark !== undefined && (
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border shrink-0 ${
+                  quizResult.passed
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-rose-600 text-white border-rose-600'
+                }`}
+              >
+                {quizResult.passed ? 'Passed' : 'Failed'}
+              </span>
+            )}
+          </div>
+          {quizResult.passMark !== undefined && (
+            <p className="text-xs text-stone-600 mt-2">
+              Pass mark: {quizResult.passMark}%
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Database Record Card */}
       <div className="mt-6 bg-white rounded-2xl p-5 border border-stone-200 shadow-xs text-left">
@@ -172,6 +255,66 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Quiz Per-Question Review */}
+      {showAnswers && quizResult && quizResult.perQuestion.length > 0 && (
+        <div className="mt-6 bg-white rounded-2xl p-5 border border-stone-200 shadow-xs text-left">
+          <div className="flex items-center gap-2 pb-3 border-b border-stone-150">
+            <CheckCircle2 className="w-4 h-4 text-sky-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-700">
+              Answer Review
+            </span>
+          </div>
+
+          <div className="space-y-3 mt-3">
+            {quizResult.perQuestion.map((pq, idx) => (
+              <div
+                key={pq.questionId}
+                className={`p-3.5 rounded-xl border ${
+                  pq.correct
+                    ? 'bg-emerald-50/60 border-emerald-200'
+                    : 'bg-rose-50/60 border-rose-200'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {pq.correct ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-stone-900 leading-snug">
+                      Q{idx + 1}. {pq.questionText}
+                    </p>
+                    <p className="text-xs text-stone-600 mt-1">
+                      Your answer:{' '}
+                      <span className="font-semibold text-stone-900">
+                        {pq.userLabel ?? 'Not answered'}
+                      </span>
+                    </p>
+                    {!pq.correct && (
+                      <p className="text-xs text-stone-600 mt-0.5">
+                        Correct answer:{' '}
+                        <span className="font-semibold text-emerald-800">
+                          {pq.correctLabels.join(', ') || '—'}
+                        </span>
+                      </p>
+                    )}
+                    {pq.explanation && (
+                      <p className="text-xs text-stone-500 mt-1.5 bg-white/70 border border-stone-200/70 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                        {pq.explanation}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-stone-500 tabular-nums shrink-0">
+                    {pq.earned}/{pq.points} pts
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 pb-safe sm:pb-0">

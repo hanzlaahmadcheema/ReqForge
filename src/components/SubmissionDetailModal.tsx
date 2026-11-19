@@ -8,6 +8,7 @@ import {
   User,
   Phone,
   CheckCircle2,
+  XCircle,
   AlertCircle,
   Check,
   Hash,
@@ -27,6 +28,7 @@ import { reconstructAnswersFromSubmission } from '../lib/firebase';
 import { generateQuestionnairePdf } from '../lib/generatePdf';
 import { exportSubmissionToCsv, exportSubmissionToJson } from '../lib/exportService';
 import { getQuestionnaireVersionSnapshot } from '../lib/questionnaireService';
+import { scoreQuiz, type QuizResult } from '../lib/quizScoring';
 import { SubmissionAiRequirementsPanel } from './management/SubmissionAiRequirementsPanel';
 
 interface SubmissionDetailModalProps {
@@ -139,6 +141,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         answers,
         isSubmitted: currentStatus !== 'draft',
         submissionDocId: submission.submissionDocId || submission.id,
+        quizResult: quizResult || undefined,
       });
 
       setDownloadSuccess(true);
@@ -164,7 +167,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
     }
   };
 
-  const currentSection = activeSections[activeTab] || activeSections[0];
+  const currentSection = activeSections[activeTab] || activeSections[0] || null;
 
   const effectiveQuestionnaire: Questionnaire = snapshotSections
     ? {
@@ -187,6 +190,24 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
         status: 'published' as const,
         sections: activeSections,
       };
+
+  // Quiz score: computed from the questionnaire + answers; falls back to the
+  // score stored on the submission when the questionnaire is no longer a quiz.
+  const computedQuizResult: QuizResult | null =
+    effectiveQuestionnaire.quiz === true ? scoreQuiz(effectiveQuestionnaire, answers) : null;
+  const storedQuizResult: QuizResult | null =
+    typeof submission.scoreEarned === 'number' && typeof submission.scoreTotal === 'number'
+      ? {
+          earned: submission.scoreEarned,
+          total: submission.scoreTotal,
+          percent:
+            typeof submission.scorePercent === 'number' ? submission.scorePercent : 0,
+          passed: submission.passed === true,
+          passMark: effectiveQuestionnaire.passMark,
+          perQuestion: computedQuizResult?.perQuestion ?? [],
+        }
+      : null;
+  const quizResult: QuizResult | null = computedQuizResult || storedQuizResult;
 
   return (
     <div
@@ -265,6 +286,35 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                   {answeredQuestions} / {totalQuestions} answered
                 </span>
               </div>
+
+              {/* Quiz Score Banner */}
+              {quizResult && (
+                <div
+                  className={`mt-2 flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold w-fit ${
+                    quizResult.passMark !== undefined && !quizResult.passed
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  }`}
+                >
+                  {quizResult.passMark !== undefined && !quizResult.passed ? (
+                    <XCircle className="w-4 h-4 text-rose-600" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  )}
+                  <span className="tabular-nums">
+                    Quiz Score: {quizResult.earned} / {quizResult.total} ({quizResult.percent}%)
+                  </span>
+                  {quizResult.passMark !== undefined && (
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        quizResult.passed ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                      }`}
+                    >
+                      {quizResult.passed ? 'Passed' : 'Failed'}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Header Right: Export Menu & Close */}
@@ -460,21 +510,24 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
               <span>Client Responses</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setMainViewMode('ai_intelligence')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                mainViewMode === 'ai_intelligence'
-                  ? 'bg-stone-900 text-white shadow-2xs'
-                  : 'text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>AI Requirements & Intelligence</span>
-              <span className="text-[10px] bg-amber-400 text-stone-950 px-1.5 py-0.2 rounded font-black">
-                Phase 5
-              </span>
-            </button>
+            {/* Quiz questionnaires are excluded from the AI requirements analysis */}
+            {!quizResult && (
+              <button
+                type="button"
+                onClick={() => setMainViewMode('ai_intelligence')}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  mainViewMode === 'ai_intelligence'
+                    ? 'bg-stone-900 text-white shadow-2xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>AI Requirements & Intelligence</span>
+                <span className="text-[10px] bg-amber-400 text-stone-950 px-1.5 py-0.2 rounded font-black">
+                  Phase 5
+                </span>
+              </button>
+            )}
           </div>
 
           <div className="text-[11px] text-stone-500 hidden sm:block">
@@ -484,7 +537,7 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
           </div>
         </div>
 
-        {mainViewMode === 'ai_intelligence' ? (
+        {mainViewMode === 'ai_intelligence' && !quizResult ? (
           <SubmissionAiRequirementsPanel
             submission={submission}
             sections={activeSections}
@@ -534,9 +587,9 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-stone-200">
             <div>
               <h3 className="text-sm sm:text-base font-bold text-stone-900">
-                {currentSection.title}
+                {currentSection?.title || 'No section available'}
               </h3>
-              {currentSection.description && (
+              {currentSection?.description && (
                 <p className="text-xs text-stone-500 mt-0.5">{currentSection.description}</p>
               )}
             </div>
@@ -546,9 +599,11 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
           </div>
 
           <div className="space-y-4">
-            {(currentSection.questions || []).map((q, qIdx) => {
+            {(currentSection?.questions || []).map((q, qIdx) => {
               const ans = answers[q.id];
               const hasAnswer = ans && ans.value !== null && ans.value !== undefined;
+              const quizMark =
+                quizResult?.perQuestion.find((r) => r.questionId === q.id) || null;
 
               return (
                 <div
@@ -572,6 +627,26 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                           <span className="text-[10px] text-rose-500 font-medium">*required</span>
                         )}
                       </div>
+                      {/* Quiz correctness badge */}
+                      {quizMark && (
+                        <div className="pt-1">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              quizMark.correct
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-rose-50 text-rose-800 border-rose-200'
+                            }`}
+                          >
+                            {quizMark.correct ? (
+                              <CheckCircle2 className="w-3 h-3" />
+                            ) : (
+                              <XCircle className="w-3 h-3" />
+                            )}
+                            {quizMark.correct ? 'Correct' : 'Incorrect'} · {quizMark.earned}/
+                            {quizMark.points} pts
+                          </span>
+                        </div>
+                      )}
                       {q.subtitle && (
                         <p className="text-[11px] text-stone-400">{q.subtitle}</p>
                       )}
@@ -624,6 +699,20 @@ export const SubmissionDetailModal: React.FC<SubmissionDetailModalProps> = ({
                           <div className="mt-1 text-xs text-stone-600 bg-blue-50/70 p-2 rounded-lg border border-blue-200/70">
                             <span className="font-semibold text-blue-900">Follow-up Response: </span>
                             {String(ans.conditionalValue)}
+                          </div>
+                        )}
+
+                        {/* Quiz correct answer + explanation (admin view) */}
+                        {quizMark && !quizMark.correct && (
+                          <div className="mt-1 text-xs text-stone-600 bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/70">
+                            <span className="font-semibold text-emerald-900">Correct answer: </span>
+                            {quizMark.correctLabels.join(', ') || '—'}
+                          </div>
+                        )}
+                        {quizMark?.explanation && (
+                          <div className="mt-1 text-xs text-stone-600 bg-sky-50/70 p-2 rounded-lg border border-sky-200/70">
+                            <span className="font-semibold text-sky-900">Explanation: </span>
+                            {quizMark.explanation}
                           </div>
                         )}
                       </div>

@@ -127,6 +127,51 @@ export const REQFORGE_CANONICAL_TEMPLATE = {
 export const REQFORGE_CANONICAL_TEMPLATE_JSON = JSON.stringify(REQFORGE_CANONICAL_TEMPLATE, null, 2);
 
 /**
+ * Quiz / Assessment template (V2, same format as the canonical template).
+ * Kept SEPARATE from the canonical template so quiz fields never leak into
+ * AI-generated requirements questionnaires — use it only when building a quiz.
+ */
+export const REQFORGE_QUIZ_TEMPLATE = {
+  questionnaire: {
+    title: 'General Knowledge Quiz',
+    description: 'A short scored quiz. Set "quiz": true to enable scoring.',
+    quiz: true,
+    show_score_on_submit: true,
+    show_correct_answers: true,
+    pass_mark: 70,
+    sections: [
+      {
+        section_title: 'Section 1',
+        questions: [
+          {
+            question_id: 'q1',
+            question: 'What is 2 + 2?',
+            type: 'single_choice',
+            required: true,
+            points: 2,
+            options: [
+              { label: '3', value: '3' },
+              { label: '4', value: '4', correct: true },
+              { label: '5', value: '5' },
+            ],
+            explanation: '2 + 2 = 4.',
+          },
+          {
+            question_id: 'q2',
+            question: 'Is the sky blue?',
+            type: 'yes_no',
+            points: 1,
+            correct_answer: true,
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const REQFORGE_QUIZ_TEMPLATE_JSON = JSON.stringify(REQFORGE_QUIZ_TEMPLATE, null, 2);
+
+/**
  * Universal AI Prompt for any LLM (ChatGPT, Claude, Gemini, Copilot, Cursor, etc.)
  * Canonical V2 Specification
  */
@@ -165,9 +210,20 @@ RULES:
 6. GENERIC & PROFESSIONAL:
    - Do not make hardcoded domain assumptions; tailor the questions to the project described below.
    - Mark critical questions as "required": true, and optional questions as "required": false.
+7. QUIZ / ASSESSMENT MODE (only when the user asks for a quiz or assessment):
+   - Set "quiz": true at the questionnaire level, plus optional "show_score_on_submit": true, "show_correct_answers": true, and "pass_mark": 70 (percent).
+   - Mark correct options with "correct": true on option objects: "options": [{"label": "4", "value": "4", "correct": true}, {"label": "3", "value": "3"}].
+   - A quiz single_choice question must have EXACTLY ONE correct option; a quiz multiple_choice question must have at least one correct option (several allowed — scored all-or-nothing).
+   - A quiz yes_no question uses question-level "correct_answer": true or false.
+   - Optional per-question "points": 2 (default 1) and "explanation": "..." (shown to the respondent after submitting).
+   - Quiz questionnaires are scored automatically and are excluded from the AI requirements analysis.
+   - Use the QUIZ TEMPLATE below as the format example for quizzes, NOT the canonical requirements template.
 
 CANONICAL V2 JSON FORMAT EXAMPLE TO FOLLOW:
 ${REQFORGE_CANONICAL_TEMPLATE_JSON}
+
+QUIZ / ASSESSMENT FORMAT EXAMPLE (use ONLY when building a quiz):
+${REQFORGE_QUIZ_TEMPLATE_JSON}
 
 ---
 PROJECT DESCRIPTION (Provide details for your client's project below):
@@ -222,21 +278,21 @@ export const SUPPORTED_QUESTION_TYPES: QuestionTypeInfo[] = [
     type: 'single_choice',
     name: 'Single Choice (Radio)',
     description: 'Single-select radio buttons where respondent selects exactly one option from an array.',
-    keys: '"options": ["Choice 1", "Choice 2"], "allow_other": true',
+    keys: '"options": ["Choice 1", "Choice 2"], "allow_other": true. Quiz: option objects with "correct": true (exactly one correct)',
     example: '{"question_id": "hosting", "question": "Hosting preference?", "type": "single_choice", "required": true, "options": ["Cloud", "On-Premise"], "allow_other": true}'
   },
   {
     type: 'multiple_choice',
     name: 'Multiple Choice (Checkboxes)',
     description: 'Multi-select checkboxes where respondent can select one or more choices from an array.',
-    keys: '"options": ["Choice 1", "Choice 2"], "allow_other": true, "allow_none": true',
+    keys: '"options": ["Choice 1", "Choice 2"], "allow_other": true, "allow_none": true. Quiz: option objects with "correct": true (at least one correct, scored all-or-nothing)',
     example: '{"question_id": "integrations", "question": "Which integrations are required?", "type": "multiple_choice", "required": false, "options": ["Payment Gateway", "CRM", "Accounting / ERP", "Messaging"], "allow_other": true}'
   },
   {
     type: 'yes_no',
     name: 'Yes / No Binary Toggle',
     description: 'Two-state decision with optional custom affirmative/negative labels.',
-    keys: '"true": "Yes label", "false": "No label" (optional)',
+    keys: '"true": "Yes label", "false": "No label" (optional). Quiz: "correct_answer": true/false',
     example: '{"question_id": "has_mobile", "question": "Need mobile app?", "type": "yes_no", "true": "Yes, native iOS/Android", "false": "Web only"}'
   },
   {

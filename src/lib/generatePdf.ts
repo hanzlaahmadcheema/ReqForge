@@ -12,6 +12,15 @@ export interface GeneratePdfOptions {
   answers: QuestionnaireAnswers;
   isSubmitted?: boolean;
   submissionDocId?: string;
+  /** Quiz score (only for quiz questionnaires). */
+  quizResult?: {
+    earned: number;
+    total: number;
+    percent: number;
+    passed: boolean;
+    passMark?: number;
+    perQuestion?: { questionId: string; correct: boolean; earned: number; points: number }[];
+  } | null;
 }
 
 export function generateQuestionnairePdf(options: GeneratePdfOptions): void {
@@ -26,6 +35,7 @@ export function generateQuestionnairePdf(options: GeneratePdfOptions): void {
     answers,
     isSubmitted = false,
     submissionDocId,
+    quizResult = null,
   } = options;
 
   const doc = new jsPDF({
@@ -117,6 +127,27 @@ export function generateQuestionnairePdf(options: GeneratePdfOptions): void {
 
   y += 25;
 
+  // 2b. Quiz Score Banner (only for quiz questionnaires)
+  if (quizResult) {
+    checkPageBreak(20);
+    const passed = quizResult.passMark !== undefined ? quizResult.passed : true;
+    doc.setFillColor(passed ? 236 : 254, passed ? 253 : 226, passed ? 234 : 226); // emerald-50 / rose-50
+    doc.setDrawColor(passed ? 167 : 254, passed ? 243 : 202, passed ? 208 : 202);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(margin, y, contentWidth, 12, 1.5, 1.5, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    const passText =
+      quizResult.passMark !== undefined ? (quizResult.passed ? ' — PASSED' : ' — FAILED') : '';
+    doc.text(
+      `QUIZ SCORE: ${quizResult.earned} / ${quizResult.total} (${quizResult.percent}%)${passText}`,
+      margin + 4,
+      y + 7.5
+    );
+    y += 16;
+  }
+
   // 3. Render each section
   sections.forEach((section, sIdx) => {
     checkPageBreak(22);
@@ -166,6 +197,17 @@ export function generateQuestionnairePdf(options: GeneratePdfOptions): void {
         }
       }
 
+      // Quiz correctness marker (only for quiz questionnaires)
+      let quizMarker = '';
+      if (quizResult?.perQuestion) {
+        const pq = quizResult.perQuestion.find((r) => r.questionId === q.id);
+        if (pq) {
+          quizMarker = pq.correct
+            ? `  [Correct — ${pq.earned}/${pq.points} pts]`
+            : `  [Incorrect — ${pq.earned}/${pq.points} pts]`;
+        }
+      }
+
       // Format Question text
       const qNum = q.order ?? q.questionNumber ?? '';
       const qText = q.text || q.title || '';
@@ -179,7 +221,7 @@ export function generateQuestionnairePdf(options: GeneratePdfOptions): void {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
-      const splitAnswer = doc.splitTextToSize(`Answer: ${valueText}`, contentWidth - 8);
+      const splitAnswer = doc.splitTextToSize(`Answer: ${valueText}${quizMarker}`, contentWidth - 8);
 
       let followUpHeight = 0;
       let splitFollowUp: string[] = [];

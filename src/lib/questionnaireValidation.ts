@@ -127,6 +127,50 @@ export function validateQuestionnaireForPublish(
         }
       }
 
+      // Points must never be negative
+      if (typeof question.points === 'number' && question.points < 0) {
+        errors.push({
+          sectionIndex: sIndex,
+          questionIndex: qIndex,
+          message: `${qDisplayName} has negative points (${question.points}). Points must be >= 0.`,
+        });
+      }
+
+      // Quiz answer-key rules (only when the questionnaire is a quiz)
+      if (questionnaire.quiz === true) {
+        if (question.type === 'single_choice') {
+          const correctCount = (question.options || []).filter(
+            (o) => o.correct === true
+          ).length;
+          if (correctCount !== 1) {
+            errors.push({
+              sectionIndex: sIndex,
+              questionIndex: qIndex,
+              message: `${qDisplayName} is a quiz single-choice question and must have exactly one option marked as correct (found ${correctCount}).`,
+            });
+          }
+        } else if (question.type === 'multiple_choice') {
+          const correctCount = (question.options || []).filter(
+            (o) => o.correct === true
+          ).length;
+          if (correctCount < 1) {
+            errors.push({
+              sectionIndex: sIndex,
+              questionIndex: qIndex,
+              message: `${qDisplayName} is a quiz multiple-choice question and must have at least one option marked as correct.`,
+            });
+          }
+        } else if (question.type === 'yes_no') {
+          if (typeof question.correctAnswer !== 'boolean') {
+            errors.push({
+              sectionIndex: sIndex,
+              questionIndex: qIndex,
+              message: `${qDisplayName} is a quiz yes/no question and must specify a correct answer (Yes or No).`,
+            });
+          }
+        }
+      }
+
       // Conditional rule validation
       const rule = question.conditionalRule;
       if (rule) {

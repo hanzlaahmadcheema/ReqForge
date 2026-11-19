@@ -1,5 +1,53 @@
 import { Submission, Questionnaire, QuestionnaireAnswers } from '../types';
 import { reconstructAnswersFromSubmission } from './firebase';
+import { scoreQuiz } from './quizScoring';
+
+/**
+ * Builds the quiz-score block for exports. Prefers the score recomputed from
+ * the questionnaire + answers; falls back to the score stored on the submission.
+ */
+function buildQuizScoreBlock(
+  submission: Submission,
+  questionnaire: Questionnaire | null | undefined,
+  answers: QuestionnaireAnswers
+) {
+  const quizResult =
+    questionnaire?.quiz === true ? scoreQuiz(questionnaire, answers) : null;
+  if (quizResult) {
+    return {
+      earned: quizResult.earned,
+      total: quizResult.total,
+      percent: quizResult.percent,
+      passed: quizResult.passed,
+      passMark: quizResult.passMark ?? null,
+      perQuestion: quizResult.perQuestion.map((pq) => ({
+        questionId: pq.questionId,
+        questionText: pq.questionText,
+        correct: pq.correct,
+        earned: pq.earned,
+        points: pq.points,
+        correctLabels: pq.correctLabels,
+        userLabel: pq.userLabel,
+        explanation: pq.explanation || null,
+      })),
+    };
+  }
+  if (
+    typeof submission.scoreEarned === 'number' &&
+    typeof submission.scoreTotal === 'number'
+  ) {
+    return {
+      earned: submission.scoreEarned,
+      total: submission.scoreTotal,
+      percent:
+        typeof submission.scorePercent === 'number' ? submission.scorePercent : null,
+      passed: typeof submission.passed === 'boolean' ? submission.passed : null,
+      passMark: null,
+      perQuestion: [],
+    };
+  }
+  return null;
+}
 
 /**
  * Helper to download a string or blob as a file in the browser
@@ -67,6 +115,8 @@ export function exportSubmissionToJson(
     };
   });
 
+  const quizScoreBlock = buildQuizScoreBlock(submission, questionnaire, answers);
+
   const exportPayload = {
     exportVersion: '1.0',
     exportedAt: new Date().toISOString(),
@@ -86,6 +136,8 @@ export function exportSubmissionToJson(
       createdAt: submission.createdAt || null,
       updatedAt: submission.updatedAt || null,
     },
+    // Quiz score block (only present for quiz questionnaires)
+    quizScore: quizScoreBlock || undefined,
     sections: structuredSections.length > 0 ? structuredSections : undefined,
     rawAnswers: answers,
   };
@@ -107,6 +159,8 @@ export function exportSubmissionToCsv(
 ): string {
   const answers = reconstructAnswersFromSubmission(submission);
   const rows: string[] = [];
+  const quizResult =
+    questionnaire?.quiz === true ? scoreQuiz(questionnaire, answers) : null;
 
   // Optional top header comment with questionnaire metadata
   if (questionnaire?.title) {
@@ -117,10 +171,11 @@ export function exportSubmissionToCsv(
       escapeCsv(''),
       escapeCsv(''),
       escapeCsv(''),
+      ...(quizResult ? [escapeCsv(''), escapeCsv('')] : []),
     ].join(','));
   }
 
-  // Header row
+  // Header row (quiz questionnaires get two extra columns)
   rows.push([
     escapeCsv('Section Title'),
     escapeCsv('Question ID'),
@@ -128,7 +183,26 @@ export function exportSubmissionToCsv(
     escapeCsv('Type'),
     escapeCsv('Answer Value'),
     escapeCsv('Notes / Other Input'),
+    ...(quizResult ? [escapeCsv('Correct?'), escapeCsv('Points Earned')] : []),
   ].join(','));
+
+  // Quiz score summary row (only for quiz questionnaires)
+  if (quizResult) {
+    const passText =
+      quizResult.passMark !== undefined
+        ? ` — ${quizResult.passed ? 'Passed' : 'Failed'} (pass mark ${quizResult.passMark}%)`
+        : '';
+    rows.push([
+      escapeCsv('QUIZ SCORE'),
+      escapeCsv(''),
+      escapeCsv(''),
+      escapeCsv(''),
+      escapeCsv(`Score: ${quizResult.earned}/${quizResult.total} (${quizResult.percent}%)${passText}`),
+      escapeCsv(''),
+      escapeCsv(''),
+      escapeCsv(''),
+    ].join(','));
+  }
 
   if (questionnaire?.sections && questionnaire.sections.length > 0) {
     // Dynamic iteration through questionnaire sections
@@ -145,6 +219,15 @@ export function exportSubmissionToCsv(
           escapeCsv(q.type),
           escapeCsv(displayVal),
           escapeCsv(otherVal),
+          ...(quizResult
+            ? (() => {
+                const pq = quizResult.perQuestion.find((r) => r.questionId === q.id);
+                return [
+                  escapeCsv(pq ? (pq.correct ? 'Correct' : 'Incorrect') : '—'),
+                  escapeCsv(pq ? `${pq.earned}/${pq.points}` : '—'),
+                ];
+              })()
+            : []),
         ].join(','));
       });
     });

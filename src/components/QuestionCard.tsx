@@ -1,12 +1,17 @@
 import React from 'react';
-import { Check, Info, HelpCircle } from 'lucide-react';
+import { Check, Info, HelpCircle, X } from 'lucide-react';
 import { Question, AnswerValue } from '../types';
+import type { QuizQuestionResult } from '../lib/quizScoring';
 
 interface QuestionCardProps {
   question: Question;
   answer: AnswerValue | undefined;
   onChange: (questionId: string, answer: AnswerValue) => void;
   showError?: boolean;
+  /** Per-question quiz result (only set when showing post-submit feedback). */
+  quizResult?: QuizQuestionResult | null;
+  /** When true, inputs are locked and correct/incorrect feedback is shown. */
+  showQuizFeedback?: boolean;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -14,6 +19,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   answer,
   onChange,
   showError = false,
+  quizResult = null,
+  showQuizFeedback = false,
 }) => {
   const currentValue = answer?.value;
   const currentOtherText = answer?.otherText || '';
@@ -125,11 +132,20 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
     question.options?.[1]?.label ||
     'No';
 
+  // Quiz feedback helpers
+  const showFeedback = showQuizFeedback && !!quizResult;
+  const yesIsCorrectAnswer = question.correctAnswer === true;
+  const noIsCorrectAnswer = question.correctAnswer === false;
+
   return (
     <div
       id={`question-card-${question.id}`}
       className={`bg-white rounded-2xl p-4 sm:p-5 border transition-all duration-200 ${
-        showError
+        showQuizFeedback && quizResult
+          ? quizResult.correct
+            ? 'border-emerald-400 ring-2 ring-emerald-100 shadow-sm'
+            : 'border-rose-400 ring-2 ring-rose-100 shadow-sm'
+          : showError
           ? 'border-rose-400 ring-2 ring-rose-100 shadow-sm'
           : 'border-stone-200/80 shadow-2xs hover:border-stone-300'
       }`}
@@ -149,6 +165,33 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             )}
           </h2>
 
+          {/* Quiz result badge (post-submit feedback) */}
+          {showQuizFeedback && quizResult && (
+            <p
+              className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                quizResult.correct
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}
+            >
+              {quizResult.correct ? (
+                <>
+                  <Check className="w-3 h-3" />
+                  <span>
+                    Correct · {quizResult.earned}/{quizResult.points} pts
+                  </span>
+                </>
+              ) : (
+                <>
+                  <X className="w-3 h-3" />
+                  <span>
+                    Incorrect · {quizResult.earned}/{quizResult.points} pts
+                  </span>
+                </>
+              )}
+            </p>
+          )}
+
           {questionDescription && (
             <p className="text-xs sm:text-sm text-stone-500 mt-1 leading-relaxed">
               {questionDescription}
@@ -164,8 +207,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       </div>
 
-      {/* Inputs based on type */}
-      <div className="mt-3.5 pl-0 sm:pl-10 space-y-2.5">
+      {/* Inputs based on type (locked once results are shown) */}
+      <div className={`mt-3.5 pl-0 sm:pl-10 space-y-2.5 ${showFeedback ? 'pointer-events-none' : ''}`}>
         {/* 1. YES / NO TYPE */}
         {isYesNo && (
           <div className="grid grid-cols-2 gap-2.5">
@@ -173,7 +216,13 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               type="button"
               onClick={() => handleValueChange(true)}
               className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                currentValue === true
+                showFeedback
+                  ? yesIsCorrectAnswer
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                    : currentValue === true
+                    ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
+                    : 'bg-white border-stone-200 text-stone-500'
+                  : currentValue === true
                   ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
                   : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
               }`}
@@ -188,13 +237,22 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {currentValue === true && <Check className="w-2.5 h-2.5" />}
               </div>
               <span className="truncate">{yesOptionLabel}</span>
+              {showFeedback && yesIsCorrectAnswer && (
+                <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
+              )}
             </button>
 
             <button
               type="button"
               onClick={() => handleValueChange(false)}
               className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                currentValue === false
+                showFeedback
+                  ? noIsCorrectAnswer
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
+                    : currentValue === false
+                    ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 shadow-xs'
+                    : 'bg-white border-stone-200 text-stone-500'
+                  : currentValue === false
                   ? 'bg-stone-100 border-stone-600 text-stone-950 ring-2 ring-stone-400/20 shadow-xs'
                   : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 active:bg-stone-100'
               }`}
@@ -209,6 +267,9 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {currentValue === false && <Check className="w-2.5 h-2.5" />}
               </div>
               <span className="truncate">{noOptionLabel}</span>
+              {showFeedback && noIsCorrectAnswer && (
+                <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
+              )}
             </button>
           </div>
         )}
@@ -218,25 +279,41 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           <div className="space-y-2">
             {question.options.map((opt) => {
               const isSelected = currentValue === opt.value;
+              const isCorrectOpt = showFeedback && !!quizResult?.correctValues.includes(opt.value);
+              const isWrongPick = showFeedback && isSelected && !isCorrectOpt;
               return (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => handleValueChange(opt.value)}
                   className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl border text-sm transition-all min-h-[48px] cursor-pointer active:scale-[0.99] ${
-                    isSelected
+                    isCorrectOpt
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/20 shadow-xs'
+                      : isWrongPick
+                      ? 'bg-rose-50 border-rose-500 text-rose-950 font-semibold ring-2 ring-rose-500/20 shadow-xs'
+                      : isSelected
                       ? 'bg-sky-50/90 border-sky-500 text-sky-950 font-semibold ring-2 ring-sky-500/20 shadow-xs'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100'
                   }`}
                 >
                   <div
                     className={`w-4 h-4 rounded-full flex items-center justify-center border shrink-0 mt-0.5 transition-colors ${
-                      isSelected
+                      isCorrectOpt
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : isWrongPick
+                        ? 'border-rose-600 bg-rose-600 text-white'
+                        : isSelected
                         ? 'border-sky-600 bg-sky-600 text-white'
                         : 'border-stone-300 bg-white'
                     }`}
                   >
-                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    {isCorrectOpt ? (
+                      <Check className="w-2.5 h-2.5" />
+                    ) : isWrongPick ? (
+                      <X className="w-2.5 h-2.5" />
+                    ) : (
+                      isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="block leading-snug">{opt.label}</span>
@@ -246,6 +323,16 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                       </span>
                     )}
                   </div>
+                  {isCorrectOpt && (
+                    <span className="text-[10px] font-bold text-emerald-700 shrink-0 mt-0.5">
+                      ✓ Correct
+                    </span>
+                  )}
+                  {isWrongPick && (
+                    <span className="text-[10px] font-bold text-rose-700 shrink-0 mt-0.5">
+                      ✗ Your answer
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -271,27 +358,53 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             {question.options.map((opt) => {
               const isChecked =
                 Array.isArray(currentValue) && currentValue.includes(opt.value);
+              const isCorrectOpt = showFeedback && !!quizResult?.correctValues.includes(opt.value);
+              const isWrongPick = showFeedback && isChecked && !isCorrectOpt;
               return (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => handleCheckboxToggle(opt.value)}
                   className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl border text-sm transition-all min-h-[48px] cursor-pointer active:scale-[0.99] ${
-                    isChecked
+                    isCorrectOpt
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/20 shadow-xs'
+                      : isWrongPick
+                      ? 'bg-rose-50 border-rose-500 text-rose-950 font-semibold ring-2 ring-rose-500/20 shadow-xs'
+                      : isChecked
                       ? 'bg-sky-50/90 border-sky-500 text-sky-950 font-semibold ring-2 ring-sky-500/20 shadow-xs'
                       : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50 hover:border-stone-300 active:bg-stone-100'
                   }`}
                 >
                   <div
                     className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 mt-0.5 transition-colors ${
-                      isChecked
+                      isCorrectOpt
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : isWrongPick
+                        ? 'border-rose-600 bg-rose-600 text-white'
+                        : isChecked
                         ? 'border-sky-600 bg-sky-600 text-white'
                         : 'border-stone-300 bg-white'
                     }`}
                   >
-                    {isChecked && <Check className="w-2.5 h-2.5" />}
+                    {isCorrectOpt ? (
+                      <Check className="w-2.5 h-2.5" />
+                    ) : isWrongPick ? (
+                      <X className="w-2.5 h-2.5" />
+                    ) : (
+                      isChecked && <Check className="w-2.5 h-2.5" />
+                    )}
                   </div>
                   <span className="flex-1 font-medium leading-snug">{opt.label}</span>
+                  {isCorrectOpt && (
+                    <span className="text-[10px] font-bold text-emerald-700 shrink-0 mt-0.5">
+                      ✓ Correct
+                    </span>
+                  )}
+                  {isWrongPick && (
+                    <span className="text-[10px] font-bold text-rose-700 shrink-0 mt-0.5">
+                      ✗ Your answer
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -420,6 +533,17 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             <HelpCircle className="w-3.5 h-3.5 shrink-0" />
             <span>Please answer this required question to proceed.</span>
           </p>
+        )}
+
+        {/* QUIZ EXPLANATION (POST-SUBMIT FEEDBACK) */}
+        {showFeedback && quizResult?.explanation && (
+          <div className="mt-2 flex items-start gap-1.5 p-2.5 rounded-xl bg-sky-50 text-sky-900 text-xs border border-sky-200/70">
+            <Info className="w-3.5 h-3.5 text-sky-600 mt-0.5 shrink-0" />
+            <span className="leading-relaxed">
+              <span className="font-bold">Explanation: </span>
+              {quizResult.explanation}
+            </span>
+          </div>
         )}
 
         {/* CONDITIONAL SUB-QUESTION */}

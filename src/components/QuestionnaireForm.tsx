@@ -22,6 +22,7 @@ import { SectionDrawer } from './SectionDrawer';
 import { ReviewSummary } from './ReviewSummary';
 import { isQuestionVisible } from '../lib/conditionalLogic';
 import { saveQuestionnaireDraft, fetchDraftSubmission } from '../lib/questionnaireService';
+import { scoreQuiz, type QuizResult } from '../lib/quizScoring';
 
 interface QuestionnaireFormProps {
   questionnaire: Questionnaire;
@@ -77,6 +78,8 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const [isSectionDrawerOpen, setIsSectionDrawerOpen] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
   const [previewSubmitted, setPreviewSubmitted] = useState<boolean>(false);
+  // Quiz result shown in preview mode after a simulated submit (score computed then)
+  const [previewQuizResult, setPreviewQuizResult] = useState<QuizResult | null>(null);
 
   // Draft persistence state
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -301,11 +304,14 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       setValidationErrors({});
       setAdditionalRequirements('');
       setCurrentSectionIndex(0);
+      setPreviewQuizResult(null);
     }
   };
 
   const handleSubmit = async () => {
     if (isPreview) {
+      // Simulated submit: score the quiz locally so the admin can preview results
+      setPreviewQuizResult(scoreQuiz(questionnaire, answers));
       setPreviewSubmitted(true);
       return;
     }
@@ -529,6 +535,12 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                     answer={answers[question.id]}
                     onChange={handleAnswerChange}
                     showError={!!validationErrors[question.id]}
+                    quizResult={
+                      previewQuizResult?.perQuestion.find(
+                        (r) => r.questionId === question.id
+                      ) || null
+                    }
+                    showQuizFeedback={!!previewQuizResult}
                   />
                 ))}
 
@@ -577,6 +589,39 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             <p className="text-xs text-stone-600 leading-relaxed">
               All questions, required validations, and conditional display rules executed as expected. In live client mode, this submission records directly into Firestore.
             </p>
+            {previewQuizResult && (
+              <div
+                className={`rounded-xl p-3.5 border text-left ${
+                  previewQuizResult.passMark !== undefined && !previewQuizResult.passed
+                    ? 'bg-rose-50 border-rose-200'
+                    : 'bg-emerald-50 border-emerald-200'
+                }`}
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                  Quiz Score (Preview)
+                </p>
+                <p className="text-xl font-black text-stone-900 tabular-nums">
+                  {previewQuizResult.earned} / {previewQuizResult.total}
+                  <span className="text-sm font-bold text-stone-500 ml-2">
+                    ({previewQuizResult.percent}%)
+                  </span>
+                  {previewQuizResult.passMark !== undefined && (
+                    <span
+                      className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${
+                        previewQuizResult.passed
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-rose-600 text-white'
+                      }`}
+                    >
+                      {previewQuizResult.passed ? 'Passed' : 'Failed'}
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] text-stone-500 mt-1">
+                  Close this dialog to review each question with correct/incorrect marking.
+                </p>
+              </div>
+            )}
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"

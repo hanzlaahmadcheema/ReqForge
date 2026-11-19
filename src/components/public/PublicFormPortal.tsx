@@ -45,6 +45,7 @@ import {
 } from '../../lib/questionnaireService';
 import { QuestionnaireForm } from '../QuestionnaireForm';
 import { SuccessView } from '../SuccessView';
+import { scoreQuiz, type QuizResult } from '../../lib/quizScoring';
 
 interface PublicFormPortalProps {
   publicFormId: string;
@@ -86,6 +87,7 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     masterDocId: string;
     answers?: QuestionnaireAnswers;
     additionalRequirements?: string;
+    quizResult?: QuizResult | null;
   } | null>(null);
 
   // 1. Fetch safe public form metadata
@@ -298,6 +300,9 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     setSubmitError(null);
 
     try {
+      // Quiz scoring (computed at submit time only; null for non-quiz questionnaires)
+      const quizResult = questionnaire ? scoreQuiz(questionnaire, payload.answers) : null;
+
       const res = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId || existingDraftId,
         workspaceId: session.workspaceId,
@@ -311,6 +316,14 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
         contactPhone: payload.contactPhone || null,
         additionalRequirements: payload.additionalRequirements || '',
         answers: payload.answers,
+        quizScore: quizResult
+          ? {
+              earned: quizResult.earned,
+              total: quizResult.total,
+              percent: quizResult.percent,
+              passed: quizResult.passed,
+            }
+          : null,
       });
 
       setSubmittedResult({
@@ -318,6 +331,7 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
         masterDocId: payload.clientCode || session.clientName || 'Client',
         answers: payload.answers,
         additionalRequirements: payload.additionalRequirements,
+        quizResult,
       });
     } catch (err: any) {
       console.error('Submission failed:', err);
@@ -473,6 +487,8 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
             sections={questionnaire?.sections || []}
             answers={submittedResult.answers || {}}
             additionalRequirements={submittedResult.additionalRequirements || ''}
+            quizResult={submittedResult.quizResult || null}
+            questionnaire={questionnaire}
             onReset={() => {
               // Post-submission editing is prohibited
               handleLockSession();

@@ -263,6 +263,37 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
     });
   };
 
+  // ---------------------------------------------------------------------------
+  // QUIZ / ASSESSMENT HELPERS
+  // ---------------------------------------------------------------------------
+  const updateQuizSettings = (
+    updates: Partial<
+      Pick<Questionnaire, 'quiz' | 'showScoreOnSubmit' | 'showCorrectAnswers' | 'passMark'>
+    >
+  ) => {
+    setQuestionnaire((prev) => ({ ...prev, ...updates }));
+  };
+
+  /**
+   * Toggles the "correct" flag on a choice option. Single-choice quizzes keep
+   * exactly one correct option; multiple-choice quizzes allow several.
+   */
+  const toggleOptionCorrect = (qIndex: number, optIndex: number) => {
+    if (!activeSection) return;
+    const currentQ = activeSection.questions[qIndex];
+    const options = currentQ.options || [];
+    const target = options[optIndex];
+    if (!target) return;
+    const nextCorrect = !(target.correct === true);
+    const isSingle =
+      currentQ.type === 'single_choice' || (currentQ.type as string) === 'radio';
+    const nextOptions = options.map((o, i) => ({
+      ...o,
+      correct: i === optIndex ? nextCorrect : isSingle && nextCorrect ? false : o.correct,
+    }));
+    updateQuestion(qIndex, { options: nextOptions });
+  };
+
   const moveQuestion = (qIndex: number, direction: 'up' | 'down') => {
     if (!activeSection) return;
     const currentQuestions = activeSection.questions || [];
@@ -604,6 +635,75 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               placeholder="Instructions or scope overview presented to clients..."
               className="w-full text-xs text-stone-700 px-3 py-2 rounded-xl border border-stone-200 focus:border-stone-900 focus:ring-1 focus:ring-stone-900 focus:outline-none resize-y"
             />
+          </div>
+
+          {/* Quiz / Assessment Mode */}
+          <div className="pt-3 border-t border-stone-100">
+            <label className="flex items-center gap-2 text-xs font-bold text-stone-800 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={questionnaire.quiz === true}
+                onChange={(e) =>
+                  updateQuizSettings({
+                    quiz: e.target.checked,
+                    ...(e.target.checked
+                      ? {
+                          showScoreOnSubmit: questionnaire.showScoreOnSubmit ?? true,
+                          showCorrectAnswers: questionnaire.showCorrectAnswers ?? true,
+                        }
+                      : {}),
+                  })
+                }
+                className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+              />
+              <span>Quiz / Assessment mode</span>
+              <span className="text-[10px] font-semibold text-stone-400 normal-case">
+                Score answers — mark correct options, set points &amp; pass mark
+              </span>
+            </label>
+
+            {questionnaire.quiz === true && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-amber-50/60 border border-amber-200/70 rounded-xl p-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                    Pass Mark (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={questionnaire.passMark ?? ''}
+                    onChange={(e) => {
+                      const v =
+                        e.target.value === ''
+                          ? undefined
+                          : Math.min(100, Math.max(0, Number(e.target.value) || 0));
+                      updateQuizSettings({ passMark: v });
+                    }}
+                    placeholder="e.g. 70"
+                    className="w-full text-xs text-stone-900 px-3 py-1.5 rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none"
+                  />
+                </div>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-stone-700 cursor-pointer select-none sm:pt-5">
+                  <input
+                    type="checkbox"
+                    checked={questionnaire.showScoreOnSubmit !== false}
+                    onChange={(e) => updateQuizSettings({ showScoreOnSubmit: e.target.checked })}
+                    className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+                  />
+                  <span>Show score to respondent</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-stone-700 cursor-pointer select-none sm:pt-5">
+                  <input
+                    type="checkbox"
+                    checked={questionnaire.showCorrectAnswers !== false}
+                    onChange={(e) => updateQuizSettings({ showCorrectAnswers: e.target.checked })}
+                    className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+                  />
+                  <span>Show correct answers</span>
+                </label>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1035,6 +1135,81 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                         </div>
                       </div>
 
+                      {/* QUIZ FIELDS (POINTS / CORRECT ANSWER / EXPLANATION) */}
+                      {questionnaire.quiz === true && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200/70">
+                          {(isChoice || question.type === 'yes_no') && (
+                            <div>
+                              <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                                Points for a correct answer
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={question.points ?? ''}
+                                onChange={(e) => {
+                                  const v =
+                                    e.target.value === ''
+                                      ? undefined
+                                      : Math.max(0, Number(e.target.value) || 0);
+                                  updateQuestion(qIdx, { points: v });
+                                }}
+                                placeholder="1"
+                                className="w-full text-xs text-stone-900 px-3 py-1.5 rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none"
+                              />
+                            </div>
+                          )}
+
+                          {question.type === 'yes_no' && (
+                            <div>
+                              <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                                Correct answer *
+                              </label>
+                              <select
+                                value={
+                                  question.correctAnswer === true
+                                    ? 'true'
+                                    : question.correctAnswer === false
+                                    ? 'false'
+                                    : ''
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  updateQuestion(qIdx, {
+                                    correctAnswer:
+                                      v === 'true' ? true : v === 'false' ? false : undefined,
+                                  });
+                                }}
+                                className="w-full text-xs text-stone-900 px-3 py-1.5 rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none bg-white"
+                              >
+                                <option value="">-- Select correct answer --</option>
+                                <option value="true">
+                                  {question.options?.find((o) => o.value === 'yes' || o.value === 'true')?.label || 'Yes'}
+                                </option>
+                                <option value="false">
+                                  {question.options?.find((o) => o.value === 'no' || o.value === 'false')?.label || 'No'}
+                                </option>
+                              </select>
+                            </div>
+                          )}
+
+                          <div className="md:col-span-2">
+                            <label className="block text-[11px] font-semibold text-stone-600 mb-1">
+                              Explanation (shown to the respondent after submitting, optional)
+                            </label>
+                            <input
+                              type="text"
+                              value={question.explanation || ''}
+                              onChange={(e) =>
+                                updateQuestion(qIdx, { explanation: e.target.value || undefined })
+                              }
+                              placeholder="e.g., 2 + 2 = 4."
+                              className="w-full text-xs text-stone-700 px-3 py-1.5 rounded-lg border border-stone-200 focus:border-stone-900 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       {/* OPTIONS BUILDER (IF CHOICE QUESTION) */}
                       {isChoice && (
                         <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2.5">
@@ -1081,6 +1256,20 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                                   placeholder="Value"
                                   className="w-28 text-[11px] font-mono text-stone-500 px-2 py-1 border border-stone-100 rounded focus:border-stone-900 focus:outline-none"
                                 />
+                                {questionnaire.quiz === true && (
+                                  <label
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-emerald-800 cursor-pointer select-none shrink-0"
+                                    title="Mark this option as a correct answer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={opt.correct === true}
+                                      onChange={() => toggleOptionCorrect(qIdx, optIdx)}
+                                      className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-600"
+                                    />
+                                    <span>Correct</span>
+                                  </label>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => deleteOption(qIdx, optIdx)}

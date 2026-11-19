@@ -2,6 +2,10 @@
   "questionnaire": {
     "title": "",
     "description": "",
+    "quiz": false,
+    "show_score_on_submit": true,
+    "show_correct_answers": true,
+    "pass_mark": 70,
     "sections": [
       {
         "section_title": "",
@@ -24,6 +28,25 @@
               "question_id": "",
               "answer": ""
             }
+          },
+          {
+            "question_id": "quiz_example",
+            "question": "Quiz example \u2014 set \"quiz\": true above to score this questionnaire.",
+            "type": "single_choice",
+            "required": false,
+            "points": 1,
+            "options": [
+              {
+                "label": "Wrong answer",
+                "value": "wrong"
+              },
+              {
+                "label": "Correct answer",
+                "value": "correct",
+                "correct": true
+              }
+            ],
+            "explanation": "Shown to the respondent after submitting."
           }
         ]
       }

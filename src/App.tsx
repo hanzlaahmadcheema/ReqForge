@@ -21,6 +21,7 @@ import { AdminPinPrompt } from './components/AdminPinPrompt';
 import { QuestionnaireForm } from './components/QuestionnaireForm';
 import { GuestHomePage } from './components/public/GuestHomePage';
 import { PublicFormPortal } from './components/public/PublicFormPortal';
+import { scoreQuiz, type QuizResult } from './lib/quizScoring';
 
 const STORAGE_KEY = 'client_requirements_draft_v1';
 
@@ -165,6 +166,7 @@ export default function App() {
     masterDocId: string;
     answers?: QuestionnaireAnswers;
     additionalRequirements?: string;
+    quizResult?: QuizResult | null;
   } | null>(null);
 
   // Load and verify project authorization from URL share link
@@ -301,6 +303,9 @@ export default function App() {
       const qId = questionnaire?.id || 'general';
       const qVer = questionnaire?.version || 1;
 
+      // Quiz scoring (computed at submit time only; null for non-quiz questionnaires)
+      const quizResult = questionnaire ? scoreQuiz(questionnaire, payload.answers) : null;
+
       const result = await saveQuestionnaireSubmission({
         existingSubmissionId: payload.existingDraftId,
         workspaceId: activeProject?.workspaceId || undefined,
@@ -315,6 +320,14 @@ export default function App() {
         contactPhone: payload.contactPhone.trim() || null,
         additionalRequirements: payload.additionalRequirements.trim(),
         answers: payload.answers,
+        quizScore: quizResult
+          ? {
+              earned: quizResult.earned,
+              total: quizResult.total,
+              percent: quizResult.percent,
+              passed: quizResult.passed,
+            }
+          : null,
       });
 
       setSubmittedResult({
@@ -322,6 +335,7 @@ export default function App() {
         masterDocId: payload.clientCode.trim() || activeClient?.name || clientCode,
         answers: payload.answers,
         additionalRequirements: payload.additionalRequirements,
+        quizResult,
       });
 
       try {
@@ -482,6 +496,8 @@ export default function App() {
             sections={questionnaire?.sections || []}
             answers={submittedResult.answers || {}}
             additionalRequirements={submittedResult.additionalRequirements || ''}
+            quizResult={submittedResult.quizResult || null}
+            questionnaire={questionnaire}
             onReset={() => {
               setSubmittedResult(null);
             }}

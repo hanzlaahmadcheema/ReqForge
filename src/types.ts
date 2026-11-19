@@ -28,6 +28,8 @@ export interface QuestionOption {
   value: string;
   label: string;
   description?: string;
+  /** Quiz/assessment: this option is a correct answer. */
+  correct?: boolean;
 }
 
 export type ConditionalOperator =
@@ -80,6 +82,10 @@ export interface Question {
   conditional?: ConditionalConfig; // Backwards-compatible alias
   sectionKey?: string; // Backwards-compatible legacy key
   questionNumber?: number; // Backwards-compatible order alias
+  // Quiz / assessment fields (optional; only used when the questionnaire is a quiz)
+  points?: number; // Points awarded for a correct answer (default 1)
+  explanation?: string; // Explanation shown to the respondent after submitting
+  correctAnswer?: boolean; // Answer key for yes_no questions (true = "yes" is correct)
 }
 
 export interface Section {
@@ -113,6 +119,11 @@ export interface Questionnaire {
   isReusable?: boolean; // Default true: reusable template
   createdAt?: string;
   updatedAt?: string;
+  // Quiz / assessment mode (optional; non-quiz questionnaires behave exactly as before)
+  quiz?: boolean; // When true, the questionnaire is scored as a quiz/assessment
+  showScoreOnSubmit?: boolean; // Show the score to the respondent right after submitting (default true for quizzes)
+  showCorrectAnswers?: boolean; // Show correct answers + explanations to the respondent (default true for quizzes)
+  passMark?: number; // Pass threshold as a percentage 0-100 (optional; no pass/fail when omitted)
 }
 
 export interface QuestionnaireVersionSnapshot {
@@ -203,6 +214,11 @@ export interface Submission {
   formTitle?: string;
   isMasterDoc?: boolean;
   submissionDocId?: string;
+  // Quiz / assessment score (present only when the questionnaire is a quiz)
+  scoreEarned?: number;
+  scoreTotal?: number;
+  scorePercent?: number;
+  passed?: boolean;
   [key: string]: unknown;
 }
 

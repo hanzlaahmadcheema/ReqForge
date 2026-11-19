@@ -34,7 +34,7 @@ export interface UserQuestionJson {
   placeholder?: string;
   description?: string;
   helper_text?: string;
-  options?: (string | { label?: string; value?: string; [key: string]: unknown })[];
+  options?: (string | { label?: string; value?: string; correct?: boolean; [key: string]: unknown })[];
   allow_other?: boolean;
   has_other?: boolean;
   hasOther?: boolean;
@@ -49,6 +49,10 @@ export interface UserQuestionJson {
   max_length?: number;
   true?: string;
   false?: string;
+  // Quiz / assessment fields
+  points?: number;
+  explanation?: string;
+  correct_answer?: boolean;
   conditional?: UserConditionalJson;
   [key: string]: unknown;
 }
@@ -67,6 +71,11 @@ export interface UserQuestionnaireTemplateJson {
     title?: string;
     description?: string;
     sections?: UserSectionJson[];
+    // Quiz / assessment flags (all optional)
+    quiz?: boolean;
+    show_score_on_submit?: boolean;
+    show_correct_answers?: boolean;
+    pass_mark?: number;
     [key: string]: unknown;
   };
   // Flat fallback format
@@ -159,7 +168,7 @@ export function extractOptions(
   const options: QuestionOption[] = [];
   const usedValues = new Set<string>();
 
-  const addOption = (label: string, customValue?: string) => {
+  const addOption = (label: string, customValue?: string, correct?: boolean) => {
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
 
@@ -174,6 +183,7 @@ export function extractOptions(
     options.push({
       value: uniqueValue,
       label: trimmedLabel,
+      ...(correct === true ? { correct: true } : {}),
     });
   };
 
@@ -185,8 +195,9 @@ export function extractOptions(
       } else if (opt && typeof opt === 'object') {
         const lbl = String((opt as any).label || (opt as any).text || '').trim();
         const val = typeof (opt as any).value === 'string' ? String((opt as any).value).trim() : undefined;
+        const correct = (opt as any).correct === true;
         if (lbl) {
-          addOption(lbl, val);
+          addOption(lbl, val, correct);
         }
       }
     }
@@ -291,6 +302,21 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
 
   const description =
     typeof qData.description === 'string' ? qData.description.trim() : '';
+
+  // Quiz / assessment flags (all optional; non-quiz questionnaires are unaffected)
+  const isQuiz = qData.quiz === true;
+  const showScoreOnSubmit =
+    typeof qData.show_score_on_submit === 'boolean' ? qData.show_score_on_submit : undefined;
+  const showCorrectAnswers =
+    typeof qData.show_correct_answers === 'boolean' ? qData.show_correct_answers : undefined;
+  let passMark: number | undefined = undefined;
+  if (typeof qData.pass_mark === 'number') {
+    if (!Number.isFinite(qData.pass_mark) || qData.pass_mark < 0 || qData.pass_mark > 100) {
+      errors.push('"pass_mark" must be a percentage between 0 and 100.');
+    } else {
+      passMark = qData.pass_mark;
+    }
+  }
 
   // 2. Sections
   const rawSections = qData.sections;
@@ -418,6 +444,54 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
         );
       }
 
+      // Quiz / assessment fields
+      let points: number | undefined = undefined;
+      if (typeof q.points === 'number') {
+        if (!Number.isFinite(q.points) || q.points < 0) {
+          errors.push(
+            `${qLoc} ("${qId || `Q${qNum}`}"): "points" must be a number >= 0.`
+          );
+        } else {
+          points = q.points;
+        }
+      }
+      const explanation =
+        typeof q.explanation === 'string' && q.explanation.trim().length > 0
+          ? q.explanation.trim()
+          : undefined;
+      const correctAnswer =
+        typeof q.correct_answer === 'boolean' ? q.correct_answer : undefined;
+      if (q.correct_answer !== undefined && qType !== 'yes_no') {
+        warnings.push(
+          `${qLoc} ("${qId || `Q${qNum}`}"): "correct_answer" only applies to yes_no questions and was ignored.`
+        );
+      }
+
+      // Quiz answer-key rules (only when the questionnaire is a quiz)
+      if (isQuiz) {
+        if (qType === 'single_choice') {
+          const correctCount = options.filter((o) => o.correct === true).length;
+          if (correctCount !== 1) {
+            errors.push(
+              `${qLoc} ("${qId || `Q${qNum}`}"): Quiz single-choice questions must have exactly one option marked "correct": true (found ${correctCount}).`
+            );
+          }
+        } else if (qType === 'multiple_choice') {
+          const correctCount = options.filter((o) => o.correct === true).length;
+          if (correctCount < 1) {
+            errors.push(
+              `${qLoc} ("${qId || `Q${qNum}`}"): Quiz multiple-choice questions must have at least one option marked "correct": true.`
+            );
+          }
+        } else if (qType === 'yes_no') {
+          if (typeof q.correct_answer !== 'boolean') {
+            errors.push(
+              `${qLoc} ("${qId || `Q${qNum}`}"): Quiz yes/no questions must specify "correct_answer": true or false.`
+            );
+          }
+        }
+      }
+
       // Placeholder handling (canonical V2 "placeholder", legacy "short_answer")
       let placeholder: string | undefined = undefined;
       if (typeof q.placeholder === 'string' && q.placeholder.trim().length > 0) {
@@ -515,6 +589,9 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
         minLength,
         maxLength,
         conditionalRule,
+        points,
+        explanation,
+        correctAnswer,
       });
     });
 
@@ -542,6 +619,10 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
     createdAt: now,
     updatedAt: now,
     sections: normalizedSections,
+    quiz: isQuiz || undefined,
+    showScoreOnSubmit,
+    showCorrectAnswers,
+    passMark,
   };
 
   return {
@@ -602,7 +683,28 @@ export function exportQuestionnaireToJsonTemplate(
       }
 
       if ((q.type === 'single_choice' || q.type === 'multiple_choice') && q.options && q.options.length > 0) {
-        qJson.options = q.options.map((opt) => opt.label);
+        // Round-trip correct-answer marking: export as objects when any option is correct,
+        // otherwise keep the compact plain-label form.
+        if (q.options.some((opt) => opt.correct === true)) {
+          qJson.options = q.options.map((opt) => ({
+            label: opt.label,
+            value: opt.value,
+            ...(opt.correct === true ? { correct: true } : {}),
+          }));
+        } else {
+          qJson.options = q.options.map((opt) => opt.label);
+        }
+      }
+
+      // Quiz / assessment fields
+      if (typeof q.points === 'number') {
+        qJson.points = q.points;
+      }
+      if (q.explanation) {
+        qJson.explanation = q.explanation;
+      }
+      if (q.type === 'yes_no' && typeof q.correctAnswer === 'boolean') {
+        qJson.correct_answer = q.correctAnswer;
       }
 
       if (q.hasOther) {
@@ -656,6 +758,16 @@ export function exportQuestionnaireToJsonTemplate(
     questionnaire: {
       title: questionnaire.title,
       description: questionnaire.description,
+      ...(questionnaire.quiz === true ? { quiz: true } : {}),
+      ...(typeof questionnaire.showScoreOnSubmit === 'boolean'
+        ? { show_score_on_submit: questionnaire.showScoreOnSubmit }
+        : {}),
+      ...(typeof questionnaire.showCorrectAnswers === 'boolean'
+        ? { show_correct_answers: questionnaire.showCorrectAnswers }
+        : {}),
+      ...(typeof questionnaire.passMark === 'number'
+        ? { pass_mark: questionnaire.passMark }
+        : {}),
       sections,
     },
   };

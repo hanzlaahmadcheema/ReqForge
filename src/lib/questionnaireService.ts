@@ -508,6 +508,13 @@ export interface SaveSubmissionParams {
   contactPhone?: string | null;
   additionalRequirements?: string;
   answers: QuestionnaireAnswers;
+  /** Quiz score computed at submit time (only for quiz questionnaires). */
+  quizScore?: {
+    earned: number;
+    total: number;
+    percent: number;
+    passed: boolean;
+  } | null;
 }
 
 /**
@@ -722,6 +729,8 @@ export async function saveQuestionnaireSubmission(
     answers,
   } = params;
 
+  const quizScore = params.quizScore || null;
+
   const cleanClient = (clientCode.trim() || 'DefaultClient').replace(/[^a-zA-Z0-9_-]/g, '_');
   const now = new Date();
   const year = now.getFullYear();
@@ -762,6 +771,15 @@ export async function saveQuestionnaireSubmission(
     answers, // stored strictly by question ID!
     rawAnswers: answers,
     shareToken: shareToken || '',
+    // Quiz score (only present for quiz questionnaires; computed at submit time)
+    ...(quizScore
+      ? {
+          scoreEarned: quizScore.earned,
+          scoreTotal: quizScore.total,
+          scorePercent: quizScore.percent,
+          passed: quizScore.passed,
+        }
+      : {}),
   };
 
   const cleanData = sanitizeForFirestore(submissionPayload);
