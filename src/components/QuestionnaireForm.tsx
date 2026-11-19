@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ListChecks,
   ListOrdered,
+  BookOpen,
 } from 'lucide-react';
 import { Questionnaire, Section, Question, AnswerValue, QuestionnaireAnswers } from '../types';
 import { QuestionCard } from './QuestionCard';
@@ -119,6 +120,13 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const [quizMode, setQuizMode] = useState<QuizAnswerMode | null>(
     restoredQuizProgress?.mode ?? null
   );
+  // Study/review mode: a third choice on the mode picker — the respondent
+  // reads every question with its correct answer and explanation shown,
+  // before attempting. It is NOT an attempt mode: it is kept out of
+  // QuizAnswerMode and out of local storage on purpose (nothing about
+  // study mode needs persisting), so a refresh simply returns to the mode
+  // picker (or the finished score screen, when one exists).
+  const [studyMode, setStudyMode] = useState<boolean>(false);
   // One-at-a-time mode state: current question index, whether it was checked,
   // and its per-question result.
   const [oneIndex, setOneIndex] = useState<number>(restoredQuizProgress?.oneIndex ?? 0);
@@ -449,6 +457,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       // answers, per-question check results and any completed score.
       clearQuizProgress(quizProgressKey);
       setQuizMode(null);
+      setStudyMode(false);
       setOneIndex(0);
       setOneChecked(false);
       setOneResult(null);
@@ -506,6 +515,13 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   const visibleQuizQuestions: Question[] = isQuiz
     ? sections.flatMap((sec) => (sec.questions || []).filter((q) => isQuestionVisible(q, answers)))
     : [];
+  // Study mode lists every question in the quiz (all sections), regardless
+  // of conditional visibility — there is no attempt in progress for the
+  // gates to depend on, so the count must not use the filtered list above.
+  const studyQuestionCount = sections.reduce(
+    (acc, sec) => acc + (sec.questions || []).length,
+    0
+  );
   const safeOneIndex = Math.min(oneIndex, Math.max(visibleQuizQuestions.length - 1, 0));
   const oneQuestion = visibleQuizQuestions[safeOneIndex] as Question | undefined;
   const isLastOneQuestion = safeOneIndex >= visibleQuizQuestions.length - 1;
@@ -550,12 +566,26 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     // result alive after this. In-progress answers/checked state are kept.
     setCompletedQuizResult(null);
     clearCompletedQuizResult(quizProgressKey);
+    setStudyMode(false);
     setQuizMode(mode);
     setOneIndex(0);
     setOneChecked(false);
     setOneResult(null);
     setOneHint(null);
     setCurrentSectionIndex(0);
+  };
+
+  // Study mode: read the answer key, don't attempt. Nothing is persisted
+  // and no completed score is touched — picking an attempt mode afterwards
+  // still starts a fresh attempt (see handlePickQuizMode).
+  const handlePickStudyMode = () => {
+    setStudyMode(true);
+    setCurrentSectionIndex(0);
+  };
+
+  // Back to the mode picker from study mode (to attempt, or to leave).
+  const handleExitStudyMode = () => {
+    setStudyMode(false);
   };
 
   // Calculate overall form progress
@@ -604,7 +634,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       <nav aria-label="Questionnaire navigation and progress" className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-stone-200/80 shadow-2xs pt-safe">
         <div className="max-w-2xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {(!isQuiz || quizMode === 'all') && (
+            {(!isQuiz || quizMode === 'all') && !studyMode && (
               <button
                 type="button"
                 onClick={() => setIsSectionDrawerOpen(true)}
@@ -617,7 +647,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
 
             {/* Mobile section badge */}
             <span className="text-[11px] font-semibold text-stone-500 bg-stone-100/70 px-2 py-1 rounded-lg tabular-nums inline-block sm:hidden truncate">
-              {isQuiz && quizMode === null
+              {isQuiz && studyMode
+                ? 'Study mode'
+                : isQuiz && quizMode === null
                 ? 'Quiz'
                 : isQuiz && quizMode === 'one'
                 ? `${safeOneIndex + 1}/${visibleQuizQuestions.length}`
@@ -628,8 +660,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
 
             {/* Desktop section label */}
             <span className="text-xs text-stone-600 font-medium hidden sm:inline truncate max-w-xs">
-              {isQuiz && quizMode === null
-                ? 'Choose how to answer'
+              {isQuiz && studyMode
+                ? 'Study mode — all correct answers'
+                : isQuiz && quizMode === null
+                ? 'Choose how to begin'
                 : isQuiz && quizMode === 'one'
                 ? `Question ${safeOneIndex + 1} of ${visibleQuizQuestions.length}`
                 : !isReviewStep && currentSection
@@ -826,12 +860,13 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         )}
 
         {/* QUIZ MODE PICKER: the respondent chooses, at the start of the quiz,
-            how to answer — the whole form at once, or one question at a time. */}
-        {isQuiz && quizMode === null && !isReviewStep && (
+            how to begin — answer the whole form at once, one question at a
+            time, or study mode to read all correct answers first. */}
+        {isQuiz && quizMode === null && !studyMode && !isReviewStep && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-xl p-5 border border-stone-200/80 shadow-xs">
               <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                How do you want to answer?
+                Choose how to begin
               </p>
               <h1 className="text-lg font-bold text-stone-900 mt-0.5">
                 {questionnaire.title}
@@ -849,7 +884,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => handlePickQuizMode('all')}
@@ -877,6 +912,21 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
                   Answer one question, check it instantly to see if it&apos;s right, then move
                   to the next.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePickStudyMode}
+                className="text-left bg-white rounded-2xl p-5 border-2 border-stone-200 hover:border-stone-900 transition-all cursor-pointer active:scale-[0.99] shadow-xs"
+              >
+                <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center mb-3">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <p className="text-sm font-bold text-stone-900">Study mode — see all correct answers</p>
+                <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                  Read through every question with the correct answer and explanation shown, before
+                  you attempt the quiz. No score — just study.
                 </p>
               </button>
             </div>
@@ -957,6 +1007,72 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 No questions currently available in this quiz.
               </div>
             )}
+          </div>
+        )}
+
+        {/* QUIZ STUDY MODE: read-only review of the whole answer key. Every
+            question in every section is listed with its correct answer
+            marked and its explanation shown; questions with no answer key
+            (text, textarea, ...) render as-is with no marking. No answering,
+            no Check/Submit buttons, no score — and nothing is persisted
+            (study mode is kept out of local storage on purpose). */}
+        {isQuiz && studyMode && !isReviewStep && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-xs font-bold text-stone-700">
+                Study mode — all correct answers ({studyQuestionCount} question
+                {studyQuestionCount === 1 ? '' : 's'})
+              </span>
+              <button
+                type="button"
+                onClick={handleExitStudyMode}
+                className="text-[11px] font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer shrink-0"
+              >
+                Back to modes
+              </button>
+            </div>
+
+            <p className="text-xs text-stone-500 px-1 leading-relaxed">
+              Read through every question with the correct answer marked and the explanation
+              shown. Nothing is scored or saved — when you&apos;re ready, go back and attempt
+              the quiz.
+            </p>
+
+            {sections.map((sec) => (
+              <div key={sec.id} className="space-y-3.5">
+                {sections.length > 1 && (
+                  <p className="text-xs font-bold uppercase tracking-wider text-stone-500 px-1 pt-2">
+                    {sec.title}
+                  </p>
+                )}
+                {(sec.questions || []).map((question) => (
+                  <QuestionCard
+                    key={question.id}
+                    question={question}
+                    answer={undefined}
+                    onChange={() => {}}
+                    studyMode
+                  />
+                ))}
+              </div>
+            ))}
+
+            {sections.length === 0 && (
+              <div className="text-center py-8 bg-white rounded-xl border border-dashed border-stone-200 text-xs text-stone-400">
+                No questions currently available in this quiz.
+              </div>
+            )}
+
+            <div className="flex items-center justify-center pt-2">
+              <button
+                type="button"
+                onClick={handleExitStudyMode}
+                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+              >
+                <span>Attempt this quiz</span>
+                <ChevronRight className="w-4 h-4 shrink-0" />
+              </button>
+            </div>
           </div>
         )}
 

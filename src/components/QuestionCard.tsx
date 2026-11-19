@@ -12,6 +12,14 @@ interface QuestionCardProps {
   quizResult?: QuizQuestionResult | null;
   /** When true, inputs are locked and correct/incorrect feedback is shown. */
   showQuizFeedback?: boolean;
+  /**
+   * Study/review mode: the respondent reads the answer key instead of
+   * answering. Correct options are highlighted green with a "✓ Correct"
+   * mark and the explanation is shown; inputs are locked; no score, no
+   * Correct/Incorrect points badge (no attempt was made). Questions with
+   * no answer key render as-is, with their explanation when one exists.
+   */
+  studyMode?: boolean;
 }
 
 export const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -21,6 +29,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   showError = false,
   quizResult = null,
   showQuizFeedback = false,
+  studyMode = false,
 }) => {
   const currentValue = answer?.value;
   const currentOtherText = answer?.otherText || '';
@@ -134,6 +143,18 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Quiz feedback helpers
   const showFeedback = showQuizFeedback && !!quizResult;
+  const showStudy = studyMode === true;
+  // Whether the answer key is revealed: either post-submit feedback for an
+  // attempt, or study mode where the key itself is the content. In study
+  // mode the key comes from the question (options marked correct / the
+  // yes_no correctAnswer), never from a respondent's result.
+  const showAnswerKey = showFeedback || showStudy;
+  const answerKeyValues: string[] =
+    showFeedback && quizResult
+      ? quizResult.correctValues
+      : (question.options || [])
+          .filter((o) => o.correct === true)
+          .map((o) => o.value);
   const yesIsCorrectAnswer = question.correctAnswer === true;
   const noIsCorrectAnswer = question.correctAnswer === false;
 
@@ -207,8 +228,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
         </div>
       </div>
 
-      {/* Inputs based on type (locked once results are shown) */}
-      <div className={`mt-3.5 pl-0 sm:pl-10 space-y-2.5 ${showFeedback ? 'pointer-events-none' : ''}`}>
+      {/* Inputs based on type (locked once results are shown, or in study mode) */}
+      <div className={`mt-3.5 pl-0 sm:pl-10 space-y-2.5 ${showFeedback || showStudy ? 'pointer-events-none' : ''}`}>
         {/* 1. YES / NO TYPE */}
         {isYesNo && (
           <div className="grid grid-cols-2 gap-2.5">
@@ -216,7 +237,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               type="button"
               onClick={() => handleValueChange(true)}
               className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                showFeedback
+                showAnswerKey
                   ? yesIsCorrectAnswer
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
                     : currentValue === true
@@ -237,7 +258,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {currentValue === true && <Check className="w-2.5 h-2.5" />}
               </div>
               <span className="truncate">{yesOptionLabel}</span>
-              {showFeedback && yesIsCorrectAnswer && (
+              {showAnswerKey && yesIsCorrectAnswer && (
                 <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
               )}
             </button>
@@ -246,7 +267,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
               type="button"
               onClick={() => handleValueChange(false)}
               className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl border text-sm font-semibold transition-all min-h-[48px] cursor-pointer active:scale-[0.98] ${
-                showFeedback
+                showAnswerKey
                   ? noIsCorrectAnswer
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs'
                     : currentValue === false
@@ -267,7 +288,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
                 {currentValue === false && <Check className="w-2.5 h-2.5" />}
               </div>
               <span className="truncate">{noOptionLabel}</span>
-              {showFeedback && noIsCorrectAnswer && (
+              {showAnswerKey && noIsCorrectAnswer && (
                 <span className="text-[10px] font-bold text-emerald-700">✓ Correct</span>
               )}
             </button>
@@ -279,7 +300,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           <div className="space-y-2">
             {question.options.map((opt) => {
               const isSelected = currentValue === opt.value;
-              const isCorrectOpt = showFeedback && !!quizResult?.correctValues.includes(opt.value);
+              const isCorrectOpt = showAnswerKey && answerKeyValues.includes(opt.value);
               const isWrongPick = showFeedback && isSelected && !isCorrectOpt;
               return (
                 <button
@@ -358,7 +379,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
             {question.options.map((opt) => {
               const isChecked =
                 Array.isArray(currentValue) && currentValue.includes(opt.value);
-              const isCorrectOpt = showFeedback && !!quizResult?.correctValues.includes(opt.value);
+              const isCorrectOpt = showAnswerKey && answerKeyValues.includes(opt.value);
               const isWrongPick = showFeedback && isChecked && !isCorrectOpt;
               return (
                 <button
@@ -535,13 +556,15 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
           </p>
         )}
 
-        {/* QUIZ EXPLANATION (POST-SUBMIT FEEDBACK) */}
-        {showFeedback && quizResult?.explanation && (
+        {/* QUIZ EXPLANATION (POST-SUBMIT FEEDBACK / STUDY MODE) — in study
+            mode the explanation comes from the question itself, since there
+            is no attempt result. Questions with no explanation show none. */}
+        {((showFeedback && quizResult?.explanation) || (showStudy && question.explanation)) && (
           <div className="mt-2 flex items-start gap-1.5 p-2.5 rounded-xl bg-sky-50 text-sky-900 text-xs border border-sky-200/70">
             <Info className="w-3.5 h-3.5 text-sky-600 mt-0.5 shrink-0" />
             <span className="leading-relaxed">
               <span className="font-bold">Explanation: </span>
-              {quizResult.explanation}
+              {quizResult?.explanation ?? question.explanation}
             </span>
           </div>
         )}

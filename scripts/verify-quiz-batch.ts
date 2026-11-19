@@ -6,6 +6,8 @@
  *  4. questionnaire dropdown disambiguation,
  *  5. quiz progress-saving gaps fixed: checked state survives refresh,
  *     finished score screen survives refresh, Reset works (in-app confirm).
+ *  6. study/review mode (third answer mode: read all correct answers
+ *     before attempting; no score, no persistence).
  *
  * Pure-logic + static source checks. No network, no Firestore, no live site.
  * Run: npx tsx scripts/verify-quiz-batch.ts
@@ -522,6 +524,68 @@ console.log('\n[mount/restore sequence: score screen survives refresh]');
   check('form auto-save uses the merge-preserve helper', form.includes('saveQuizProgressState(quizProgressKey, {'));
   check('form never overwrites with completedResult: completedQuizResult', !form.includes('completedResult: completedQuizResult,'));
   check('mode pick clears the stored completed result', form.includes('clearCompletedQuizResult(quizProgressKey)'));
+}
+
+// ---------------------------------------------------------------------------
+// 10. Study/review mode (third answer mode)
+// ---------------------------------------------------------------------------
+console.log('\n[study mode]');
+{
+  // Answer-key derivation: what study mode shows comes from the question's
+  // own key. scoreQuestion with no answer exposes correctLabels +
+  // explanation without implying any attempt was made.
+  const q1 = quiz.sections[0].questions[0];
+  const q2 = quiz.sections[0].questions[1];
+  const q3 = quiz.sections[0].questions[2];
+  const q5 = quiz.sections[0].questions[4];
+  check('study key: q1 correct label is 4 + explanation shown', (() => {
+    const s = scoreQuestion(q1, undefined);
+    return s.correctLabels.join(',') === '4' && s.explanation === '2 + 2 = 4.';
+  })(), JSON.stringify(scoreQuestion(q1, undefined).correctLabels));
+  check('study key: q2 correct label is Yes', scoreQuestion(q2, undefined).correctLabels.join(',') === 'Yes');
+  check('study key: multiple-choice q3 correct labels are 2 and 4', (() => {
+    const s = scoreQuestion(q3, undefined);
+    return s.correctLabels.length === 2 && s.correctLabels.includes('2') && s.correctLabels.includes('4');
+  })());
+  check('study key: unscored text q5 has no correct label and is not scorable', (() => {
+    const s = scoreQuestion(q5, undefined);
+    return s.correctLabels.length === 0 && !isScorableQuestion(q5);
+  })());
+
+  const form = src('src/components/QuestionnaireForm.tsx');
+  const card = src('src/components/QuestionCard.tsx');
+  check('mode picker offers study mode', form.includes('Study mode — see all correct answers') && form.includes('handlePickStudyMode'));
+  check('mode picker has three options', form.includes('sm:grid-cols-3'));
+  check('study view is quiz-only', form.includes('isQuiz && studyMode'));
+  check('study view lists every question across all sections', form.includes('QUIZ STUDY MODE') && form.includes('sections.map((sec) =>') && form.includes('studyMode\n'));
+  check('study view offers Back to modes + Attempt this quiz', form.includes('Back to modes') && form.includes('Attempt this quiz'));
+  check('study view has no submit/score UI', (() => {
+    const start = form.indexOf('QUIZ STUDY MODE');
+    const end = form.indexOf('VIEW 2: FINAL REVIEW', start);
+    const block = form.slice(start, end);
+    return (
+      !block.includes('handleSubmit') &&
+      !block.includes('Submit Quiz') &&
+      !block.includes('See my score') &&
+      !block.includes('scoreQuiz(')
+    );
+  })());
+  check('study mode is not persisted (storage type unchanged)', !src('src/lib/quizLocalStorage.ts').includes('study') && src('src/lib/quizLocalStorage.ts').includes("export type QuizAnswerMode = 'all' | 'one'"));
+  check('picking study mode writes nothing (no save/clear calls)', (() => {
+    const start = form.indexOf('const handlePickStudyMode');
+    const end = form.indexOf('const handleExitStudyMode', start);
+    const block = form.slice(start, end);
+    return (
+      !block.includes('saveQuizProgress') &&
+      !block.includes('clearQuizProgress') &&
+      !block.includes('clearCompletedQuizResult')
+    );
+  })());
+  check('Reset exits study mode', form.includes('setStudyMode(false)'));
+  check('QuestionCard supports studyMode prop', card.includes('studyMode?: boolean') && card.includes('showAnswerKey'));
+  check('study mode reveals the key from the question itself', card.includes('answerKeyValues') && card.includes('.filter((o) => o.correct === true)'));
+  check('study mode shows the question explanation', card.includes('showStudy && question.explanation'));
+  check('study mode locks inputs', card.includes("showFeedback || showStudy ? 'pointer-events-none'"));
 }
 
 // ---------------------------------------------------------------------------
