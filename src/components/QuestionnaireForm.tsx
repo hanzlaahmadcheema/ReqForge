@@ -52,6 +52,7 @@ import {
   orderQuestions,
   withShuffledOptions,
 } from '../lib/quizShuffle';
+import { defaultSubmissionsEnabled } from '../lib/submissionSettings';
 
 /**
  * The questions of an attempt, in the order the respondent answers them:
@@ -94,6 +95,13 @@ interface QuestionnaireFormProps {
     answers: QuestionnaireAnswers;
     existingDraftId?: string;
   }) => Promise<string>;
+  /**
+   * Outcome: `true` (or void) means the submit went through — the form may
+   * show the score screen. `false` means the parent refused or failed the
+   * save (e.g. submissions were closed mid-attempt): the form must NOT show
+   * a score screen for an attempt that was never recorded, and the parent
+   * surfaces the reason via `submitError`.
+   */
   onSubmit?: (payload: {
     clientCode: string;
     contactPerson: string;
@@ -101,10 +109,25 @@ interface QuestionnaireFormProps {
     additionalRequirements: string;
     answers: QuestionnaireAnswers;
     existingDraftId?: string;
-  }) => Promise<void>;
+  }) => Promise<boolean | void>;
   onClosePreview?: () => void;
   isSubmitting?: boolean;
   submitError?: string | null;
+  /**
+   * Effective submission setting for this form (master switch AND per-form
+   * toggle, as computed by the parent from the live questionnaire + the
+   * global setting). When absent, the per-form default applies (on for
+   * requirements questionnaires, off for quizzes) — this is what preview
+   * mode uses. When false, the parent shows the closed message instead of
+   * this form, except in study-only mode.
+   */
+  submissionsOpen?: boolean;
+  /**
+   * Study-only mode: the parent shows the form only to read the answer key
+   * (used when submissions are closed for a quiz). The mode picker and all
+   * attempt controls are hidden; only the study view renders.
+   */
+  studyOnly?: boolean;
 }
 
 export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
@@ -121,16 +144,26 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   onClosePreview,
   isSubmitting = false,
   submitError = null,
+  submissionsOpen,
+  studyOnly = false,
 }) => {
   const [clientCode, setClientCode] = useState<string>(initialClientCode);
   const [contactPerson, setContactPerson] = useState<string>('');
   const [contactPhone, setContactPhone] = useState<string>('');
   const [additionalRequirements, setAdditionalRequirements] = useState<string>('');
-  // Quiz-only state. Quizzes are fully anonymous: progress lives in this
-  // browser's local storage only and is never sent to any server, so a
+  // Quiz-only state. Quizzes are anonymous by default: progress lives in
+  // this browser's local storage only and is never sent to any server, so a
   // refresh can resume an attempt. Requirements questionnaires are
   // unaffected (their drafts still live in Firestore).
   const isQuiz = questionnaire.quiz === true;
+  // Effective submission setting for this form. The parent (App / portal)
+  // passes the live value (master switch AND per-form toggle); preview mode
+  // falls back to the per-form default. When true for a quiz, the attempt
+  // IS saved to Firestore with its score — and every piece of copy below
+  // must say so instead of claiming anonymity.
+  const effectiveSubmissionsOpen =
+    submissionsOpen ?? defaultSubmissionsEnabled(questionnaire);
+  const quizSavesResponses = isQuiz && effectiveSubmissionsOpen;
   const quizProgressKey = getQuizProgressKey(questionnaire.id, projectId);
   // Restored once, on mount, so the lazy initializers below read it exactly once.
   const [restoredQuizProgress] = useState<QuizProgress | null>(() =>
@@ -200,8 +233,10 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   // before attempting. It is NOT an attempt mode: it is kept out of
   // QuizAnswerMode and out of local storage on purpose (nothing about
   // study mode needs persisting), so a refresh simply returns to the mode
-  // picker (or the finished score screen, when one exists).
-  const [studyMode, setStudyMode] = useState<boolean>(false);
+  // picker (or the finished score screen, when one exists). In study-only
+  // mode (parent shows the form only to read the answer key because
+  // submissions are closed) study mode starts on and the picker never shows.
+  const [studyMode, setStudyMode] = useState<boolean>(studyOnly);
   // One-at-a-time mode state: current question index, whether it was checked,
   // and its per-question result.
   const [oneIndex, setOneIndex] = useState<number>(restoredQuizProgress?.oneIndex ?? 0);
@@ -273,11 +308,14 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
   useEffect(() => {
     if (isPreview) return;
     if (isQuiz) {
-      // Anonymous quiz: no server draft exists to restore — progress was
-      // already restored from this browser's local storage above.
+      // Quiz progress was already restored from this browser's local
+      // storage above (anonymous or recorded — the notice must not claim
+      // nothing is saved when submissions are on for this quiz).
       if (restoredQuizProgress && Object.keys(restoredQuizProgress.answers || {}).length > 0) {
         setResumedDraftNotice(
-          'Your previous progress on this quiz was restored from this browser only. Nothing was sent to or saved on any server.'
+          quizSavesResponses
+            ? 'Your previous progress on this quiz was restored from this browser only.'
+            : 'Your previous progress on this quiz was restored from this browser only. Nothing was sent to or saved on any server.'
         );
       }
       return;
@@ -328,7 +366,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [projectId, clientId, questionnaire.id, initialClientCode, isPreview, isQuiz, restoredQuizProgress]);
+  }, [projectId, clientId, questionnaire.id, initialClientCode, isPreview, isQuiz, restoredQuizProgress, quizSavesResponses]);
 
   // Quiz progress auto-save: local storage only, never the server.
   // Persists answers, mode, index, per-question check results and the
@@ -566,9 +604,26 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
       // A submitted quiz attempt is done: persist the completed result
       // (score + per-question review) in this browser's local storage so a
       // refresh restores the score screen instead of dropping back to the
-      // mode picker. The score is computed, never stored on any server.
-      // Retake / Reset clears it again (see handleConfirmClearForm).
+      // mode picker. For an anonymous quiz the score is computed, never
+      // stored on any server. The result is persisted only AFTER the parent
+      // confirms the submit went through — persisting it first would restore
+      // a score screen for an attempt that was never saved (e.g. submissions
+      // were closed mid-attempt: the parent returns false and the form stays
+      // on the review step with the submit error). Retake / Reset clears it
+      // again (see handleConfirmClearForm).
       const result = scoreQuiz(questionnaire, answers);
+      let ok: boolean | void = true;
+      if (onSubmit) {
+        ok = await onSubmit({
+          clientCode,
+          contactPerson,
+          contactPhone,
+          additionalRequirements,
+          answers,
+          existingDraftId: draftId || undefined,
+        });
+      }
+      if (ok === false) return;
       setCompletedQuizResult(result);
       saveQuizProgress(quizProgressKey, {
         answers,
@@ -581,6 +636,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
         optionOrder: optionOrder ?? null,
         updatedAt: new Date().toISOString(),
       });
+      return;
     }
 
     if (onSubmit) {
@@ -840,7 +896,11 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             {isQuiz && (
               <span
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200"
-                title="Quiz progress is kept in this browser only — nothing is sent to a server"
+                title={
+                  quizSavesResponses
+                    ? 'Your progress is kept in this browser; your submitted answers and score are saved to the project record'
+                    : 'Quiz progress is kept in this browser only — nothing is sent to a server'
+                }
               >
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Saved in this browser</span>
@@ -939,9 +999,11 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
         )}
 
-        {/* Anonymous Quiz Notice — shown on every quiz so the respondent can
-            see, before answering anything, that nothing leaves this browser. */}
-        {isQuiz && (
+        {/* Quiz notice — shown on every quiz so the respondent can see,
+            before answering anything, whether anything leaves this browser.
+            The copy must match the real setting: when submissions are ON for
+            this quiz, answers ARE saved — never claim anonymity then. */}
+        {isQuiz && !quizSavesResponses && (
           <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
             <div className="p-1 rounded-lg bg-emerald-100 text-emerald-700 shrink-0 mt-0.5">
               <ShieldCheck className="w-4 h-4" />
@@ -952,6 +1014,22 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 Your answers are never sent to or stored on any server, and no one can see them.
                 Your score is calculated in this browser only, and your progress is kept only in
                 this browser&apos;s local storage.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isQuiz && quizSavesResponses && (
+          <div className="mb-4 bg-sky-50 border border-sky-200 text-sky-900 rounded-xl p-3.5 flex items-start gap-2.5 text-xs">
+            <div className="p-1 rounded-lg bg-sky-100 text-sky-700 shrink-0 mt-0.5">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-sky-950">Responses are recorded</p>
+              <p className="text-sky-800 mt-0.5 leading-relaxed">
+                Your answers and score are saved to the project record when you submit, and the
+                administrator can see them. Your progress is also kept in this browser&apos;s
+                local storage while you work through the quiz.
               </p>
             </div>
           </div>
@@ -976,15 +1054,20 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleClearForm}
-              className="text-[11px] text-stone-400 hover:text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
-              title="Clear all inputs"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset</span>
-            </button>
+            {/* Reset is hidden in study-only mode: clearing would drop the
+                respondent back to the mode picker, whose attempt modes are
+                closed for this form. */}
+            {!studyOnly && (
+              <button
+                type="button"
+                onClick={handleClearForm}
+                className="text-[11px] text-stone-400 hover:text-stone-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                title="Clear all inputs"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1263,13 +1346,17 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
                 Study mode — all correct answers ({studyQuestionCount} question
                 {studyQuestionCount === 1 ? '' : 's'})
               </span>
-              <button
-                type="button"
-                onClick={handleExitStudyMode}
-                className="text-[11px] font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer shrink-0"
-              >
-                Back to modes
-              </button>
+              {/* In study-only mode there is no mode picker to go back to —
+                  the attempt modes are closed for this form. */}
+              {!studyOnly && (
+                <button
+                  type="button"
+                  onClick={handleExitStudyMode}
+                  className="text-[11px] font-semibold text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer shrink-0"
+                >
+                  Back to modes
+                </button>
+              )}
             </div>
 
             <p className="text-xs text-stone-500 px-1 leading-relaxed">
@@ -1303,16 +1390,18 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-center pt-2">
-              <button
-                type="button"
-                onClick={handleExitStudyMode}
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
-              >
-                <span>Attempt this quiz</span>
-                <ChevronRight className="w-4 h-4 shrink-0" />
-              </button>
-            </div>
+            {!studyOnly && (
+              <div className="flex items-center justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={handleExitStudyMode}
+                  className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-stone-900 hover:bg-stone-800 active:bg-stone-950 shadow-xs transition-all cursor-pointer min-h-[44px] active:scale-[0.98]"
+                >
+                  <span>Attempt this quiz</span>
+                  <ChevronRight className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1336,6 +1425,7 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             isSubmitting={isSubmitting}
             submitError={submitError}
             isQuiz={isQuiz}
+            quizSavesResponses={quizSavesResponses}
             flatQuestions={isQuiz ? orderedVisibleQuizQuestions : undefined}
           />
         )}
@@ -1354,7 +1444,9 @@ export const QuestionnaireForm: React.FC<QuestionnaireFormProps> = ({
             <p className="text-xs text-stone-600 leading-relaxed">
               All questions, required validations, and conditional display rules executed as expected.{' '}
               {isQuiz
-                ? 'In live mode, quiz answers are never saved anywhere — scoring happens in the respondent\u2019s browser only.'
+                ? quizSavesResponses
+                  ? 'In live mode, this quiz saves answers and scores to the project record.'
+                  : 'In live mode, quiz answers are never saved anywhere — scoring happens in the respondent\u2019s browser only.'
                 : 'In live client mode, this submission records directly into Firestore.'}
             </p>
             {previewQuizResult && (

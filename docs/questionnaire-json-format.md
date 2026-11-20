@@ -60,6 +60,7 @@ questionnaire
 | `show_score_on_submit` | `boolean` | No | Quiz only. When `true` (default for quizzes), the respondent sees their score right after submitting. |
 | `show_correct_answers` | `boolean` | No | Quiz only. When `true` (default for quizzes), the respondent sees per-question correct/incorrect marking and explanations. |
 | `pass_mark` | `number` | No | Quiz only. Pass threshold as a percentage (0–100). When set, the result shows Passed/Failed; when omitted, no pass/fail is shown. |
+| `submissions_enabled` | `boolean` | No | Whether this form accepts submissions. Defaults to `true` for requirements questionnaires and `false` for quizzes. When `false` on a requirements questionnaire, respondents see "Submissions Closed" and nothing is saved. When `false` on a quiz, the quiz is anonymous (see Section 4.5). The admin's master switch in Submissions can close every form at once regardless of this setting. |
 
 ---
 
@@ -199,9 +200,11 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
 
 **Answer modes:** at the start of a quiz the respondent chooses how to begin — either answer the whole form at once and see the score after submitting, or answer one question at a time and see instantly whether each answer is right (with the explanation) before moving to the next. A third choice, **Study mode**, shows every question with its correct answer and explanation before any attempt is made — no answering, no score, just reading through the answer key; from there the respondent can go back and attempt the quiz in either of the other two modes. Study mode is never saved anywhere (not even in the browser's local storage). The choice is theirs; the two attempt modes use the same scoring rules below.
 
-**Anonymity — quizzes are never stored:** quiz responses are never saved to the database — no submissions, no drafts, no mirrors. The score is calculated in the respondent's browser only, and the only place anything is kept is that browser's local storage (so a refresh can resume progress). The quiz form says this plainly, so respondents know they are anonymous. Admins do **not** see quiz scores or answers anywhere — there is nothing to list, because nothing was ever sent. Requirements questionnaires are unaffected: they still save submissions and drafts exactly as before.
+**Anonymity — quizzes are anonymous unless submissions are turned on for them:** by default (`"submissions_enabled": false`, or omitted on a quiz) quiz responses are never saved to the database — no submissions, no drafts, no mirrors. The score is calculated in the respondent's browser only, and the only place anything is kept is that browser's local storage (so a refresh can resume progress). The quiz form says this plainly, so respondents know they are anonymous. Admins do **not** see quiz scores or answers anywhere — there is nothing to list, because nothing was ever sent. When the owner turns submissions **on** for a quiz (per-form "Accept submissions" toggle in the Quizzes list, or `"submissions_enabled": true` in JSON), the quiz submit path saves the attempt to Firestore with its score fields, it appears in admin Submissions with its Quiz Score, and the form's copy changes to say answers and scores are saved — it never claims anonymity while submissions are on. Requirements questionnaires are unaffected by the quiz default: they still save submissions and drafts exactly as before (unless their own toggle is off — see below).
 
 **Progress kept in the browser:** a refresh resumes exactly where the respondent left off — answers, the chosen answer mode, and the current question. In one-at-a-time mode a checked question keeps its correct/incorrect feedback and explanation (the answer stays locked). A finished quiz keeps its score screen on refresh, with a "Take the quiz again" action to start over. Reset (with a confirmation dialog) clears all answers and the saved progress and returns to the mode choice.
+
+**Submission controls (`submissions_enabled` + master switch):** every form has an "Accept submissions" toggle — in the admin's Questionnaires / Quizzes lists (a Submissions On/Off badge that is also a click-to-flip toggle), in the detail view, and in the builder; it can also be set in JSON as `"submissions_enabled": true/false`. Defaults preserve current behaviour: requirements questionnaires accept submissions, quizzes do not (anonymous). A second, global master switch — "Submissions enabled for all forms" at the top of the Submissions view — closes submissions for **every** form at once; when it is on, each form's own setting applies. When a form is closed, respondents see "Submissions Closed — This form is no longer accepting responses" instead of the form, and nothing is saved (the check is re-run at submit time too, so a form closed mid-attempt cannot save). One exception: a quiz whose own toggle is off is not "closed" — it runs anonymously, exactly as before — only the master switch closes a quiz entirely, and then its Study mode stays readable ("Study the answers instead") because study mode never collects anything. The master switch persists in the Firestore `settings/global` document; the Firestore rules for the `settings` collection must be deployed (`firebase deploy --only firestore:rules`) for the switch to save — until then reads fail open (submissions on) and a failed save is shown in the admin instead of pretending it worked.
 
 **Shuffling (attempt modes only):** when an attempt starts, the questions are shuffled across the WHOLE quiz into one flat sequence — not in section order, and section grouping is not shown while attempting. The options inside each question are shuffled too (whole option objects, so the correct answer stays attached to its option), including yes/no, whose two positions may swap. Each new attempt deals a fresh random order. During an attempt a **Shuffle** button re-deals the questions and the options again on demand; answers and checked feedback travel with their questions, so nothing is lost — in one-at-a-time mode the attempt resumes at the first unanswered question in the new order (or stays on the last question when everything is answered). The shuffled order is kept in the browser's local storage with the rest of the progress, so a refresh keeps the same order instead of dealing a new one. Study mode is never shuffled: it keeps the original question order and section grouping so the answer key reads in order.
 
@@ -213,6 +216,7 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
     "show_score_on_submit": true,
     "show_correct_answers": true,
     "pass_mark": 70,
+    "submissions_enabled": false,
     "sections": [
       {
         "section_title": "Section 1",
@@ -252,7 +256,7 @@ Set `"quiz": true` at the questionnaire level to turn a questionnaire into a sco
 - Conditionally-hidden questions (see Section 5) are excluded from the total.
 - Quiz questionnaires are excluded from the AI requirements/gap analysis.
 - Quizzes live in their own **Quizzes** section in the admin, separate from requirements questionnaires — they never mix in one list.
-- Quiz answers are anonymous (see above): no database writes of any kind; local storage only.
+- Quiz answers are anonymous by default (see above): no database writes of any kind; local storage only. When submissions are turned on for a quiz, answers and scores are saved to Firestore and appear in admin Submissions.
 
 ---
 
@@ -304,6 +308,7 @@ The application validates the JSON template before importing:
 12. `points`, when provided, must be a number `>= 0`.
 13. In a quiz (`"quiz": true`), every `single_choice` question must have exactly one option marked `"correct": true`, and every `multiple_choice` question must have at least one option marked `"correct": true`. A quiz question with no correct option fails validation.
 14. In a quiz, every `yes_no` question must specify `"correct_answer": true` or `false`.
+15. `submissions_enabled`, when provided, must be a boolean. It defaults to `true` for requirements questionnaires and `false` for quizzes. When `false` on a requirements questionnaire, the form is closed ("Submissions Closed") and saves nothing; when `false` on a quiz, the quiz is anonymous. The admin master switch (Submissions view) closes every form at once regardless of this field — only the master switch can close a quiz entirely.
 
 Error messages clearly pinpoint the section, question, and issue:
 > `Section 2 ("Technical Scope") -> Question 3 ("pos_type"): Single choice questions require at least 2 options (e.g. "options": ["Option 1", "Option 2"]).`

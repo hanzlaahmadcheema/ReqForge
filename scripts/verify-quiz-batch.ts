@@ -12,6 +12,12 @@
  *     whole quiz + options shuffled inside each question, Shuffle button
  *     re-deals on demand, order persisted in localStorage; study mode and
  *     requirements questionnaires untouched).
+ *  8. submission on/off controls: per-form `submissions_enabled` (JSON) /
+ *     `submissionsEnabled` toggle (defaults: requirements ON, quizzes OFF),
+ *     global master switch (OFF closes everything), closed-form message
+ *     on both public flows, quiz-with-submissions-on saves with its score
+ *     and shows non-anonymous copy, quiz-with-submissions-off stays
+ *     anonymous, requirements regression.
  *
  * Pure-logic + static source checks. No network, no Firestore, no live site.
  * Run: npx tsx scripts/verify-quiz-batch.ts
@@ -43,6 +49,11 @@ import {
   validateQuestionnaireJson,
 } from '../src/lib/questionnaireJsonImporter';
 import { validateQuestionnaireForPublish } from '../src/lib/questionnaireValidation';
+import {
+  defaultSubmissionsEnabled,
+  isSubmissionsOpen,
+  isFormOpen,
+} from '../src/lib/submissionSettings';
 import type { Questionnaire, QuestionnaireAnswers } from '../src/types';
 
 let passed = 0;
@@ -345,7 +356,10 @@ console.log('\n[static audit: anonymity]');
   check('Form never calls saveQuestionnaireSubmission', !form.includes('saveQuestionnaireSubmission'));
   check('Form persists quiz progress via localStorage helper', form.includes('saveQuizProgress(quizProgressKey'));
   check('Form has no native window.confirm (in-app reset dialog instead)', !form.includes('window.confirm(') && form.includes('showResetConfirm'));
-  check('SuccessView hides Firestore record card for quizzes', src('src/components/SuccessView.tsx').includes('{!isQuiz && ('));
+  // Submission controls changed this: the record card is hidden for
+  // ANONYMOUS quizzes (no record exists) but shown for recorded quizzes
+  // (submissions on) — see section 12 for the full matrix.
+  check('SuccessView hides Firestore record card for anonymous quizzes only', src('src/components/SuccessView.tsx').includes('{(!isQuiz || submissionSaved) && ('));
   check('SuccessView quiz copy says anonymous, not saved', src('src/components/SuccessView.tsx').includes('completely anonymous'));
   check('ReviewSummary has quiz mode (no contact fields / Firestore copy)', src('src/components/ReviewSummary.tsx').includes('isQuiz') && src('src/components/ReviewSummary.tsx').includes('Submit Quiz & See Score'));
 }
@@ -869,6 +883,180 @@ console.log('\n[shuffle]');
   check('ReviewSummary supports a flat shuffled summary', review.includes('flatQuestions?: Question[]') && review.includes('Summary ({flatQuestions.length} Questions)'));
   check('ReviewSummary hides the section chart for flat reviews', review.includes('{!flatQuestions && (') && review.includes('SectionCompletionChart'));
   check('non-quiz flow still uses the sectioned view + footer', form.includes('VIEW 1: ACTIVE SECTION QUESTIONS') && form.includes('{!isQuiz && (') && review.includes('Summary by Section'));
+}
+
+// ---------------------------------------------------------------------------
+// 12. Submission on/off controls
+// ---------------------------------------------------------------------------
+console.log('\n[submission controls]');
+{
+  // -- Pure decision logic -------------------------------------------------
+  const quizNoSetting: Questionnaire = { ...quiz };
+  delete (quizNoSetting as any).submissionsEnabled;
+  const quizOn: Questionnaire = { ...quiz, submissionsEnabled: true };
+  const quizOff: Questionnaire = { ...quiz, submissionsEnabled: false };
+  const reqNoSetting: Questionnaire = { ...nonQuiz };
+  delete (reqNoSetting as any).submissionsEnabled;
+  const reqOn: Questionnaire = { ...nonQuiz, submissionsEnabled: true };
+  const reqOff: Questionnaire = { ...nonQuiz, submissionsEnabled: false };
+
+  check('quiz with no setting defaults to submissions OFF (anonymous)', defaultSubmissionsEnabled(quizNoSetting) === false);
+  check('requirements with no setting defaults to submissions ON', defaultSubmissionsEnabled(reqNoSetting) === true);
+  check('explicit ON wins over the quiz default', defaultSubmissionsEnabled(quizOn) === true);
+  check('explicit OFF wins over the requirements default', defaultSubmissionsEnabled(reqOff) === false);
+  check('master OFF overrides per-form ON (requirements)', isSubmissionsOpen(reqOn, false) === false);
+  check('master OFF overrides per-form ON (quiz)', isSubmissionsOpen(quizOn, false) === false);
+  check('master ON + per-form ON saves (requirements)', isSubmissionsOpen(reqOn, true) === true);
+  check('master ON + per-form ON saves (quiz)', isSubmissionsOpen(quizOn, true) === true);
+  check('master ON + per-form OFF does not save (requirements)', isSubmissionsOpen(reqOff, true) === false);
+  check('master ON + per-form OFF does not save (quiz)', isSubmissionsOpen(quizOff, true) === false);
+  check('master OFF closes every form, requirements included', isFormOpen(reqOn, false) === false);
+  check('master OFF closes every form, quiz included', isFormOpen(quizOff, false) === false);
+  check('per-form OFF closes a requirements form', isFormOpen(reqOff, true) === false);
+  check('per-form OFF does NOT close a quiz (anonymous mode stays open)', isFormOpen(quizOff, true) === true && isFormOpen(quizNoSetting, true) === true);
+  check('master ON + requirements ON is open', isFormOpen(reqOn, true) === true);
+
+  // -- Importer: submissions_enabled ---------------------------------------
+  const quizJsonOn = JSON.parse(JSON.stringify(sampleQuizJson));
+  quizJsonOn.questionnaire.submissions_enabled = true;
+  const quizJsonOff = JSON.parse(JSON.stringify(sampleQuizJson));
+  quizJsonOff.questionnaire.submissions_enabled = false;
+  const reqJson: any = {
+    questionnaire: {
+      title: 'Req Form',
+      sections: [{ section_title: 'S', questions: [{ question_id: 'a', question: 'Q?', type: 'text' }] }],
+    },
+  };
+  const reqJsonOff = JSON.parse(JSON.stringify(reqJson));
+  reqJsonOff.questionnaire.submissions_enabled = false;
+  const badJson = JSON.parse(JSON.stringify(sampleQuizJson));
+  badJson.questionnaire.submissions_enabled = 'yes';
+
+  check('importer: explicit submissions_enabled true on a quiz wins', importQuestionnaireFromJson(quizJsonOn).submissionsEnabled === true);
+  check('importer: explicit submissions_enabled false on a quiz wins', importQuestionnaireFromJson(quizJsonOff).submissionsEnabled === false);
+  check('importer: quiz JSON without the field defaults to OFF', importQuestionnaireFromJson(sampleQuizJson).submissionsEnabled === false);
+  check('importer: requirements JSON without the field defaults to ON', importQuestionnaireFromJson(reqJson).submissionsEnabled === true);
+  check('importer: explicit false on requirements wins', importQuestionnaireFromJson(reqJsonOff).submissionsEnabled === false);
+  check('importer: non-boolean submissions_enabled fails validation', (() => {
+    const v = validateQuestionnaireJson(badJson);
+    return v.valid === false && (v.errors || []).some((e) => e.includes('submissions_enabled'));
+  })());
+  check('export round-trip keeps submissions_enabled', (() => {
+    const exported = exportQuestionnaireToJsonTemplate(importQuestionnaireFromJson(quizJsonOn));
+    return JSON.stringify(exported).includes('submissions_enabled');
+  })(), JSON.stringify(exportQuestionnaireToJsonTemplate(importQuestionnaireFromJson(quizJsonOn))).slice(0, 120));
+
+  // -- localStorage: submissionDocId ----------------------------------------
+  const skey = getQuizProgressKey('q_test', 'proj_sub');
+  saveQuizProgress(skey, { answers: allCorrect, mode: 'one', oneIndex: 1, checked: {}, completedResult: null, completedAt: null, submissionDocId: 'draft_proj_1_abc', updatedAt: '' });
+  check('submissionDocId round-trips through localStorage', loadQuizProgress(skey)?.submissionDocId === 'draft_proj_1_abc');
+  mergeQuizProgress(skey, { answers: oneWrong });
+  check('merge preserves a stored submissionDocId', loadQuizProgress(skey)?.submissionDocId === 'draft_proj_1_abc');
+  saveQuizProgressState(skey, { answers: oneWrong, mode: 'one', oneIndex: 1, checked: {} });
+  check('auto-save preserves a stored submissionDocId', loadQuizProgress(skey)?.submissionDocId === 'draft_proj_1_abc');
+  clearCompletedQuizResult(skey);
+  check('clearing the completed result also clears the submissionDocId', loadQuizProgress(skey)?.submissionDocId === null);
+  clearQuizProgress(skey);
+
+  // -- Static wiring: service carries the field -----------------------------
+  const svc = src('src/lib/questionnaireService.ts');
+  check('normalizeQuestionnaireDoc loads submissionsEnabled', svc.includes('submissionsEnabled: data.submissionsEnabled as boolean | undefined'));
+  check('publish snapshot carries submissionsEnabled', svc.includes('submissionsEnabled: questionnaire.submissionsEnabled'));
+  check('duplicateQuestionnaire carries submissionsEnabled', svc.includes('submissionsEnabled: source.submissionsEnabled'));
+
+  // -- Static wiring: templates ---------------------------------------------
+  const tpl = src('src/lib/aiWorkflowConstants.ts');
+  check('quiz template sets submissions_enabled: false', tpl.includes('submissions_enabled: false'));
+  check('canonical requirements template sets submissions_enabled: true', tpl.includes('submissions_enabled: true'));
+
+  // -- Static wiring: App.tsx (share-link flow) ------------------------------
+  const app = src('src/App.tsx');
+  check('App loads the master switch with the questionnaire', app.includes('getGlobalSubmissionSettings().then((s)'));
+  check('App waits for the master switch before rendering the form', app.includes('globalSubmissionsEnabled === null'));
+  check('App closed card: "Submissions Closed" + exact message', app.includes('Submissions Closed') && app.includes('This form is no longer accepting responses.'));
+  check('App closed card offers study mode for quizzes', app.includes('Study the answers instead') && app.includes('setStudyOnly(true)'));
+  check('App re-checks the setting at submit time', app.includes('const latestGlobal = await getGlobalSubmissionSettings()') && app.includes("setSubmitError('This form is no longer accepting responses.')"));
+  check('App anonymous-quiz path only when submissions are off', app.includes('questionnaire?.quiz === true && !submissionsOpen'));
+  check('App recorded-quiz path merges the Firestore id into local progress', app.includes('submissionDocId: result.submissionId'));
+  check('App passes submissionsOpen + studyOnly to the form', app.includes('submissionsOpen={') && app.includes('studyOnly={studyOnly}'));
+  check('App passes submissionSaved to SuccessView', app.includes('submissionSaved={submittedResult.submissionSaved ?? false}'));
+  check('App snapshot reconstruction prefers the live setting', app.includes('loadedQ.submissionsEnabled ?? snapshot.submissionsEnabled'));
+  check('App restore uses the stored submission id when present', app.includes('progress.submissionDocId ??') && app.includes('submissionSaved: !!progress.submissionDocId'));
+  check('App draft save re-checks the setting for requirements forms', app.includes('!isFormOpen(questionnaire, latestGlobal.submissionsEnabled)'));
+
+  // -- Static wiring: PublicFormPortal.tsx (public-form flow) ----------------
+  const portal = src('src/components/public/PublicFormPortal.tsx');
+  check('Portal loads the master switch with the questionnaire', portal.includes('getGlobalSubmissionSettings().then((s) =>'));
+  check('Portal waits for the master switch before rendering the form', portal.includes('globalSubmissionsEnabled === null'));
+  check('Portal closed card: "Submissions Closed" + exact message', portal.includes('Submissions Closed') && portal.includes('This form is no longer accepting responses.'));
+  check('Portal closed card offers study mode for quizzes', portal.includes('Study the answers instead') && portal.includes('setStudyOnly(true)'));
+  check('Portal re-checks the setting at submit time', portal.includes('const latestGlobal = await getGlobalSubmissionSettings()') && portal.includes("setSubmitError('This form is no longer accepting responses.')"));
+  check('Portal anonymous-quiz path only when submissions are off', portal.includes('questionnaire.quiz === true && !submissionsOpen'));
+  check('Portal recorded-quiz path merges the Firestore id into local progress', portal.includes('submissionDocId: res.submissionId'));
+  check('Portal passes submissionsOpen + studyOnly to the form', portal.includes('submissionsOpen={') && portal.includes('studyOnly={studyOnly}'));
+  check('Portal passes submissionSaved to SuccessView', portal.includes('submissionSaved={submittedResult.submissionSaved ?? false}'));
+  check('Portal snapshot reconstruction prefers the live setting', portal.includes('q.submissionsEnabled ?? snapshot.submissionsEnabled'));
+  check('Portal footer copy reflects the real state for quizzes', portal.includes('Your answers and score are saved to the project record when you submit') && portal.includes('Anonymous quiz — nothing you answer is saved or sent anywhere'));
+
+  // -- Static wiring: QuestionnaireForm copy + study-only ---------------------
+  const form = src('src/components/QuestionnaireForm.tsx');
+  check('Form takes submissionsOpen + studyOnly props', form.includes('submissionsOpen?: boolean') && form.includes('studyOnly?: boolean'));
+  check('Form computes quizSavesResponses from the effective setting', form.includes('quizSavesResponses = isQuiz && effectiveSubmissionsOpen'));
+  check('Form keeps the anonymous notice when submissions are off', form.includes('Anonymous quiz — nothing is saved') && form.includes('!quizSavesResponses'));
+  check('Form shows the recorded notice when submissions are on', form.includes('Responses are recorded') && form.includes('Your answers and score are saved to the project record when you submit'));
+  check('Form chip tooltip branches on the real state', form.includes('your submitted answers and score are saved to the project record'));
+  check('Form hides Reset / Back to modes / Attempt in study-only mode', (form.match(/!studyOnly && \(/g) || []).length >= 3);
+  check('Form persists the completed result only after the parent confirms the submit', (() => {
+    const start = form.indexOf('const handleSubmit');
+    const block = form.slice(start, start + 6000);
+    const onSubmitIdx = block.indexOf('await onSubmit({');
+    const gateIdx = block.indexOf('if (ok === false) return;', onSubmitIdx);
+    const persistIdx = block.indexOf('setCompletedQuizResult(result);', gateIdx);
+    return onSubmitIdx > 0 && gateIdx > onSubmitIdx && persistIdx > gateIdx && block.includes('only AFTER the parent');
+  })());
+  check('Form onSubmit contract returns false on refusal', form.includes('Promise<boolean | void>') && form.includes('if (ok === false) return;'));
+  check('App handleSubmit returns false when the form is closed mid-attempt', app.includes("setSubmitError('This form is no longer accepting responses.');\n        return false;"));
+  check('Portal handleSubmit returns false when the form is closed mid-attempt', portal.includes("setSubmitError('This form is no longer accepting responses.');\n        return false;"));
+  check('App + Portal handleSubmit return true on success', app.includes('return true;') && portal.includes('return true;'));
+  check('Form passes quizSavesResponses to ReviewSummary', form.includes('quizSavesResponses={quizSavesResponses}'));
+
+  // -- Static wiring: ReviewSummary + SuccessView copy ------------------------
+  const review = src('src/components/ReviewSummary.tsx');
+  check('ReviewSummary takes quizSavesResponses', review.includes('quizSavesResponses?: boolean'));
+  check('ReviewSummary review copy branches on the real state', review.includes('Your answers and score will be saved to the project record when you submit.') && review.includes('Anonymous quiz — nothing is saved or sent anywhere.'));
+  const success = src('src/components/SuccessView.tsx');
+  check('SuccessView takes submissionSaved', success.includes('submissionSaved?: boolean'));
+  check('SuccessView shows the record card for recorded quizzes', success.includes('(!isQuiz || submissionSaved) && ('));
+  check('SuccessView recorded-quiz copy says answers + score are saved', success.includes('Your answers and score have been saved to the project record.'));
+  check('SuccessView anonymous-quiz copy is unchanged', success.includes('this quiz is completely anonymous'));
+
+  // -- Static wiring: admin per-form toggle -----------------------------------
+  const qview = src('src/components/management/QuestionnairesView.tsx');
+  check('Questionnaires list has a Submissions column', qview.includes('<th className="py-3 px-4">Submissions</th>'));
+  check('Submissions badge is a click-to-flip toggle', qview.includes('handleToggleSubmissions') && qview.includes('Submissions on — click to turn off'));
+  check('Detail view has an Accept submissions switch', qview.includes('Accept submissions') && qview.includes('role="switch"'));
+  check('Blank quiz defaults to submissions OFF', qview.includes('submissionsEnabled: false'));
+  check('Blank requirements form defaults to submissions ON', qview.includes('submissionsEnabled: true'));
+  check('JSON import forces the type default when the field is omitted', qview.includes('submissionsEnabled: imported.submissionsEnabled ?? false') && qview.includes('submissionsEnabled: imported.submissionsEnabled ?? true'));
+
+  // -- Static wiring: builder ---------------------------------------------------
+  const builder = src('src/components/management/QuestionnaireBuilder.tsx');
+  check('Builder has an Accept submissions checkbox', builder.includes('Accept submissions') && builder.includes('defaultSubmissionsEnabled(questionnaire)'));
+  check('Builder quiz toggle follows the type default when never set explicitly', builder.includes('submissionsEnabled: !e.target.checked'));
+
+  // -- Static wiring: master switch in Submissions ------------------------------
+  const subs = src('src/components/management/SubmissionsView.tsx');
+  check('Submissions view has the master switch card', subs.includes('Submissions enabled for all forms'));
+  check('Master switch loads + saves the global setting', subs.includes('getGlobalSubmissionSettings()') && subs.includes('setGlobalSubmissionSettings(next)'));
+  check('Master switch reverts on save failure and shows the error', subs.includes('setGlobalEnabled(!next)') && subs.includes('Could not save the master switch'));
+
+  // -- Static wiring: Firestore rules + docs --------------------------------------
+  const rules = src('firestore.rules');
+  check('Firestore rules allow public get on /settings', rules.includes('match /settings/{settingId}') && rules.includes('allow get: if isValidId(settingId);'));
+  check('Firestore rules restrict /settings writes to admins', rules.includes('allow create, update: if isValidId(settingId) && isAdmin();'));
+  check('Firestore rules forbid /settings list + delete', rules.includes('allow list: if false;') && rules.includes('allow delete: if false;'));
+  const docs = src('docs/questionnaire-json-format.md');
+  check('Docs document submissions_enabled + the master switch', docs.includes('submissions_enabled') && docs.includes('master switch'));
 }
 
 // ---------------------------------------------------------------------------

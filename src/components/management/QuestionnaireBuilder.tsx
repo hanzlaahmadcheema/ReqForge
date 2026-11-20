@@ -32,6 +32,7 @@ import {
 } from '../../types';
 import { validateQuestionnaireForPublish } from '../../lib/questionnaireValidation';
 import { saveQuestionnaire, publishQuestionnaire } from '../../lib/questionnaireService';
+import { defaultSubmissionsEnabled } from '../../lib/submissionSettings';
 import { QuestionnairePreviewModal } from './QuestionnairePreviewModal';
 import { AiQuestionnaireAssistantModal } from './AiQuestionnaireAssistantModal';
 import { QuestionnaireJsonModal } from './QuestionnaireJsonModal';
@@ -268,7 +269,10 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
   // ---------------------------------------------------------------------------
   const updateQuizSettings = (
     updates: Partial<
-      Pick<Questionnaire, 'quiz' | 'showScoreOnSubmit' | 'showCorrectAnswers' | 'passMark'>
+      Pick<
+        Questionnaire,
+        'quiz' | 'showScoreOnSubmit' | 'showCorrectAnswers' | 'passMark' | 'submissionsEnabled'
+      >
     >
   ) => {
     setQuestionnaire((prev) => ({ ...prev, ...updates }));
@@ -652,6 +656,13 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
                           showCorrectAnswers: questionnaire.showCorrectAnswers ?? true,
                         }
                       : {}),
+                    // A form that never had an explicit submission setting
+                    // follows its type: turning quiz mode on switches
+                    // submissions off (anonymous), turning it off switches
+                    // them back on. An explicitly set value is left alone.
+                    ...(questionnaire.submissionsEnabled === undefined
+                      ? { submissionsEnabled: !e.target.checked }
+                      : {}),
                   })
                 }
                 className="rounded border-stone-300 text-stone-900 focus:ring-stone-900"
@@ -659,6 +670,26 @@ export const QuestionnaireBuilder: React.FC<QuestionnaireBuilderProps> = ({
               <span>Quiz / Assessment mode</span>
               <span className="text-[10px] font-semibold text-stone-400 normal-case">
                 Score answers — mark correct options, set points &amp; pass mark
+              </span>
+            </label>
+
+            {/* Accept submissions — per-form switch. The checked state shows
+                the effective default when the form never had an explicit
+                value (on for requirements, off for quizzes). */}
+            <label className="mt-3 flex items-start gap-2 text-xs font-bold text-stone-800 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={defaultSubmissionsEnabled(questionnaire)}
+                onChange={(e) => updateQuizSettings({ submissionsEnabled: e.target.checked })}
+                className="mt-0.5 rounded border-stone-300 text-stone-900 focus:ring-stone-900"
+              />
+              <span>
+                Accept submissions
+                <span className="block text-[10px] font-semibold text-stone-400 normal-case mt-0.5">
+                  {questionnaire.quiz === true
+                    ? 'When on, quiz answers are saved to Firestore with scores (not anonymous). When off, the quiz is anonymous.'
+                    : 'When off, the form shows \u201cSubmissions Closed\u201d and saves nothing.'}
+                </span>
               </span>
             </label>
 

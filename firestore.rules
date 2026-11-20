@@ -321,6 +321,19 @@ service cloud.firestore {
       allow delete: if isValidId(publicFormId) && isAuthenticated() &&
         (resource.data.workspaceId == request.auth.uid || isAdmin());
     }
+
+    // 8. Global submission settings (master on/off switch for ALL forms)
+    // Public flows (share links, public forms) must read this without
+    // signing in, so `get` is public. Writes are admin-only. NOTE: this
+    // rule only takes effect after `firebase deploy --only firestore:rules`;
+    // until then the app fails open (master ON) and the admin toggle
+    // surfaces its save error instead of pretending it saved.
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if false;
+      allow create, update: if isValidId(settingId) && isAdmin();
+      allow delete: if false;
+    }
   }
 }
 

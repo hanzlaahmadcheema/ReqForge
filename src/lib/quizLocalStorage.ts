@@ -50,6 +50,14 @@ export interface QuizProgress {
    */
   questionOrder?: string[] | null;
   optionOrder?: Record<string, string[]> | null;
+  /**
+   * Firestore submission id, when this quiz attempt was SAVED because
+   * submissions are enabled for it (see submissionSettings). Null for
+   * anonymous attempts. Kept so a refresh can restore the score screen
+   * with the real record id instead of a made-up local one. Cleared by
+   * retake / Reset / starting a fresh attempt.
+   */
+  submissionDocId?: string | null;
   updatedAt: string;
 }
 
@@ -151,6 +159,8 @@ function safeParse(raw: string | null): QuizProgress | null {
       // (the form deals a fresh order when restoring such progress).
       questionOrder: safeParseStringArray(parsed.questionOrder),
       optionOrder: safeParseOptionOrder(parsed.optionOrder),
+      submissionDocId:
+        typeof parsed.submissionDocId === 'string' ? parsed.submissionDocId : null,
       updatedAt:
         typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
     };
@@ -191,6 +201,7 @@ export function mergeQuizProgress(key: string, partial: Partial<QuizProgress>): 
     completedAt: null as string | null,
     questionOrder: null as string[] | null,
     optionOrder: null as Record<string, string[]> | null,
+    submissionDocId: null as string | null,
     updatedAt: new Date().toISOString(),
   };
   saveQuizProgress(key, {
@@ -219,6 +230,7 @@ export interface QuizProgressState {
   completedAt?: string | null;
   questionOrder?: string[] | null;
   optionOrder?: Record<string, string[]> | null;
+  submissionDocId?: string | null;
 }
 
 /**
@@ -244,6 +256,7 @@ export function saveQuizProgressState(key: string, state: QuizProgressState): vo
       : existing?.completedAt ?? null,
     questionOrder: state.questionOrder ?? existing?.questionOrder ?? null,
     optionOrder: state.optionOrder ?? existing?.optionOrder ?? null,
+    submissionDocId: state.submissionDocId ?? existing?.submissionDocId ?? null,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -251,12 +264,18 @@ export function saveQuizProgressState(key: string, state: QuizProgressState): vo
 /**
  * Drops only the completed score from stored progress (respondent picks an
  * answer mode to start a fresh attempt). Answers/mode/index/checked are
- * kept, so this never disturbs an in-progress attempt.
+ * kept, so this never disturbs an in-progress attempt. The saved submission
+ * id goes with the score: a fresh attempt has no submission yet.
  */
 export function clearCompletedQuizResult(key: string): void {
   const existing = loadQuizProgress(key);
   if (!existing) return;
-  saveQuizProgress(key, { ...existing, completedResult: null, completedAt: null });
+  saveQuizProgress(key, {
+    ...existing,
+    completedResult: null,
+    completedAt: null,
+    submissionDocId: null,
+  });
 }
 
 /** Deletes a quiz attempt's local progress (called on retake / Reset, so the next attempt starts fresh). */

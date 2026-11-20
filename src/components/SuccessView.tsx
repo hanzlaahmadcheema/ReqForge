@@ -15,6 +15,13 @@ interface SuccessViewProps {
   additionalRequirements: string;
   quizResult?: QuizResult | null;
   questionnaire?: Questionnaire | null;
+  /**
+   * True when this attempt was actually saved to Firestore — always true
+   * for requirements questionnaires, and for quizzes only when submissions
+   * are enabled for that quiz. Drives every piece of copy here: an
+   * anonymous quiz must never show a record card or a document ID.
+   */
+  submissionSaved?: boolean;
   onReset: () => void;
 }
 
@@ -28,6 +35,7 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   additionalRequirements,
   quizResult = null,
   questionnaire = null,
+  submissionSaved = false,
   onReset,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -38,6 +46,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
   const isQuiz = !!quizResult;
   const showScore = isQuiz && questionnaire?.showScoreOnSubmit !== false;
   const showAnswers = isQuiz && questionnaire?.showCorrectAnswers !== false;
+  // A quiz attempt is recorded only when submissions are enabled for it;
+  // otherwise the quiz stays anonymous and there is no record anywhere.
+  const quizRecorded = isQuiz && submissionSaved;
 
   const handleDownloadPdf = () => {
     setIsPdfGenerating(true);
@@ -49,8 +60,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         answers,
         additionalRequirements,
         isSubmitted: true,
-        // Anonymous quiz: there is no stored record, so no document ID.
-        submissionDocId: isQuiz ? undefined : docId,
+        // No stored record for an anonymous quiz, so no document ID.
+        // A recorded quiz (submissions on) gets the real submission id.
+        submissionDocId: !isQuiz || submissionSaved ? docId : undefined,
         quizResult: quizResult || undefined,
       });
     } catch (err) {
@@ -78,7 +90,14 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
     }
     if (quizResult) {
       // Anonymous quiz: no record exists anywhere — say so explicitly.
-      content += `Anonymous quiz — no record was saved. Score calculated in your browser only.\n`;
+      // A recorded quiz has a real Firestore submission document.
+      if (quizRecorded) {
+        content += `Your answers and score were saved to the project record.\n`;
+        content += `Firestore Document ID: ${docId}\n`;
+        content += `Firestore Collection: submissions\n`;
+      } else {
+        content += `Anonymous quiz — no record was saved. Score calculated in your browser only.\n`;
+      }
     } else {
       content += `Firestore Document ID: ${docId}\n`;
       content += `Firestore Collection: submissions\n`;
@@ -150,7 +169,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       </h2>
       <p className="text-sm text-stone-600 mt-2 max-w-md mx-auto">
         {isQuiz
-          ? 'Your score was calculated in this browser only. Nothing was saved or sent anywhere — this quiz is completely anonymous.'
+          ? quizRecorded
+            ? 'Your answers and score have been saved to the project record.'
+            : 'Your score was calculated in this browser only. Nothing was saved or sent anywhere — this quiz is completely anonymous.'
           : 'Your client requirements answers have been safely saved directly into Firebase Firestore.'}
       </p>
 
@@ -205,8 +226,9 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       )}
 
       {/* Database Record Card — not shown for anonymous quizzes: there is no
-          stored record to point at. */}
-      {!isQuiz && (
+          stored record to point at. A recorded quiz (submissions on) shows
+          its record, exactly like a requirements questionnaire. */}
+      {(!isQuiz || submissionSaved) && (
       <div className="mt-6 bg-white rounded-2xl p-5 border border-stone-200 shadow-xs text-left">
         <div className="flex items-center gap-2 pb-3 border-b border-stone-150">
           <Database className="w-4 h-4 text-sky-600" />

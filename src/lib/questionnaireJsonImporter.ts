@@ -76,6 +76,9 @@ export interface UserQuestionnaireTemplateJson {
     show_score_on_submit?: boolean;
     show_correct_answers?: boolean;
     pass_mark?: number;
+    // Submission control (optional): false closes the form. Defaults to
+    // true for requirements questionnaires, false for quizzes.
+    submissions_enabled?: boolean;
     [key: string]: unknown;
   };
   // Flat fallback format
@@ -316,6 +319,15 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
     } else {
       passMark = qData.pass_mark;
     }
+  }
+
+  // Submission control (optional): an explicit value always wins; when
+  // absent the default follows the form type — requirements ON, quizzes OFF.
+  let submissionsEnabled: boolean = !isQuiz;
+  if (typeof qData.submissions_enabled === 'boolean') {
+    submissionsEnabled = qData.submissions_enabled;
+  } else if (qData.submissions_enabled !== undefined) {
+    errors.push('"submissions_enabled" must be a boolean (true/false).');
   }
 
   // 2. Sections
@@ -623,6 +635,7 @@ export function validateQuestionnaireJson(rawInput: unknown): ValidationResult {
     showScoreOnSubmit,
     showCorrectAnswers,
     passMark,
+    submissionsEnabled,
   };
 
   return {
@@ -767,6 +780,9 @@ export function exportQuestionnaireToJsonTemplate(
         : {}),
       ...(typeof questionnaire.passMark === 'number'
         ? { pass_mark: questionnaire.passMark }
+        : {}),
+      ...(typeof questionnaire.submissionsEnabled === 'boolean'
+        ? { submissions_enabled: questionnaire.submissionsEnabled }
         : {}),
       sections,
     },

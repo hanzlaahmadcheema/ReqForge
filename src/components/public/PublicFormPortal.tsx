@@ -18,6 +18,7 @@ import {
   FolderKanban,
   FileText,
   AlertCircle,
+  BookOpen,
   Clock,
   Sparkles,
   LogOut,
@@ -52,6 +53,11 @@ import {
   clearQuizProgress,
   mergeQuizProgress,
 } from '../../lib/quizLocalStorage';
+import {
+  getGlobalSubmissionSettings,
+  isFormOpen,
+  isSubmissionsOpen,
+} from '../../lib/submissionSettings';
 
 interface PublicFormPortalProps {
   publicFormId: string;
@@ -94,7 +100,17 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     answers?: QuestionnaireAnswers;
     additionalRequirements?: string;
     quizResult?: QuizResult | null;
+    // True when this attempt was actually saved to Firestore (always true
+    // for requirements questionnaires; for quizzes only when submissions
+    // are enabled for that quiz). Drives the SuccessView record card/copy.
+    submissionSaved?: boolean;
   } | null>(null);
+  // Master submission switch (null = still loading). Fails open to ON when
+  // the settings document cannot be read (see submissionSettings).
+  const [globalSubmissionsEnabled, setGlobalSubmissionsEnabled] = useState<boolean | null>(null);
+  // Study-only mode: when submissions are closed for a quiz, the respondent
+  // can still read the answer key instead of the closed message.
+  const [studyOnly, setStudyOnly] = useState<boolean>(false);
 
   // 1. Fetch safe public form metadata
   useEffect(() => {
@@ -163,6 +179,12 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     setLoadingQuestionnaire(true);
     setQuestionnaireError(null);
 
+    // Master submission switch loads in parallel with the questionnaire —
+    // the form render waits for it so a closed form never flashes open.
+    getGlobalSubmissionSettings().then((s) => {
+      if (isMounted) setGlobalSubmissionsEnabled(s.submissionsEnabled);
+    });
+
     async function loadFormQuestionnaire() {
       try {
         const q = await getQuestionnaire(session!.questionnaireId);
@@ -193,6 +215,10 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
               showScoreOnSubmit: snapshot.showScoreOnSubmit ?? q.showScoreOnSubmit,
               showCorrectAnswers: snapshot.showCorrectAnswers ?? q.showCorrectAnswers,
               passMark: snapshot.passMark ?? q.passMark,
+              // Submission control: the LIVE questionnaire's current setting
+              // wins over the snapshot, so flipping the toggle takes effect
+              // immediately even for version-pinned links.
+              submissionsEnabled: q.submissionsEnabled ?? snapshot.submissionsEnabled,
             });
             return;
           }
@@ -278,13 +304,23 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
 
     // ANONYMOUS QUIZ: drafts live in this browser's local storage only —
     // never Firestore. (The form normally handles this itself; this guard
-    // covers any other caller.)
+    // covers any other caller.) Quiz drafts stay local even when submissions
+    // are ON for the quiz — only the SUBMIT saves to Firestore, so a quiz
+    // never leaves an orphaned in-progress draft in admin Submissions.
     if (questionnaire.quiz === true) {
       mergeQuizProgress(
         getQuizProgressKey(session.questionnaireId, session.projectId),
         { answers: payload.answers }
       );
       return `local_${Date.now().toString(36)}`;
+    }
+
+    // Requirements draft, re-checked at save time: a form closed while the
+    // respondent was filling it in saves nothing.
+    const latestGlobal = await getGlobalSubmissionSettings();
+    setGlobalSubmissionsEnabled(latestGlobal.submissionsEnabled);
+    if (!isFormOpen(questionnaire, latestGlobal.submissionsEnabled)) {
+      throw new Error('This form is no longer accepting responses.');
     }
 
     const res = await saveQuestionnaireDraft({
@@ -319,7 +355,7 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     answers: QuestionnaireAnswers;
     existingDraftId?: string;
   }) => {
-    if (!session || !questionnaire) return;
+    if (!session || !questionnaire) return false;
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -328,18 +364,32 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
       // Quiz scoring (computed at submit time only; null for non-quiz questionnaires)
       const quizResult = questionnaire ? scoreQuiz(questionnaire, payload.answers) : null;
 
-      // ANONYMOUS QUIZ: never write to Firestore — no submission, no draft,
-      // no mirror. The score is computed in the browser only and shown to
-      // the respondent; nothing leaves this device.
-      if (questionnaire.quiz === true) {
+      // Submission gate, re-checked at submit time: the owner may have
+      // closed this form (or everything, via the master switch) while the
+      // respondent was filling it in. A closed form saves nothing — the
+      // form shows the error and keeps the answers in this browser.
+      const latestGlobal = await getGlobalSubmissionSettings();
+      setGlobalSubmissionsEnabled(latestGlobal.submissionsEnabled);
+      if (!isFormOpen(questionnaire, latestGlobal.submissionsEnabled)) {
+        setSubmitError('This form is no longer accepting responses.');
+        return false;
+      }
+      const submissionsOpen = isSubmissionsOpen(questionnaire, latestGlobal.submissionsEnabled);
+
+      // ANONYMOUS QUIZ (submissions off for this quiz): never write to
+      // Firestore — no submission, no draft, no mirror. The score is
+      // computed in the browser only and shown to the respondent; nothing
+      // leaves this device.
+      if (questionnaire.quiz === true && !submissionsOpen) {
         setSubmittedResult({
           docId: `local_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`,
           masterDocId: payload.clientCode || session.clientName || 'Client',
           answers: payload.answers,
           additionalRequirements: payload.additionalRequirements,
           quizResult,
+          submissionSaved: false,
         });
-        return;
+        return true;
       }
 
       const res = await saveQuestionnaireSubmission({
@@ -365,16 +415,29 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
           : null,
       });
 
+      // A quiz with submissions ON lands in Firestore with its score, so it
+      // appears in admin Submissions. Keep the submission id in local
+      // progress so a refresh restores the score screen with the real record.
+      if (questionnaire.quiz === true) {
+        mergeQuizProgress(
+          getQuizProgressKey(session.questionnaireId, session.projectId),
+          { submissionDocId: res.submissionId }
+        );
+      }
+
       setSubmittedResult({
         docId: res.submissionId,
         masterDocId: payload.clientCode || session.clientName || 'Client',
         answers: payload.answers,
         additionalRequirements: payload.additionalRequirements,
         quizResult,
+        submissionSaved: true,
       });
+      return true;
     } catch (err: any) {
       console.error('Submission failed:', err);
       setSubmitError(err.message || 'Submission failed. Please try again.');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -386,7 +449,14 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     setPin('');
     setQuestionnaire(null);
     setSubmittedResult(null);
+    setStudyOnly(false);
   };
+
+  // A new questionnaire means a fresh form: study-only mode (entered from
+  // the closed card) does not carry over to another form.
+  useEffect(() => {
+    setStudyOnly(false);
+  }, [questionnaire?.id]);
 
   // Restore a completed anonymous quiz result after a refresh: the score
   // screen lives in this browser's local storage only, so a reload must show
@@ -401,11 +471,14 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
     );
     if (progress?.completedResult) {
       setSubmittedResult({
-        docId: `local_restored_${Date.now().toString(36)}`,
+        // A recorded quiz (submissions were on) restores its real Firestore
+        // document id; an anonymous attempt gets a local id and no record.
+        docId: progress.submissionDocId ?? `local_restored_${Date.now().toString(36)}`,
         masterDocId: session.clientName || 'Client',
         answers: progress.answers || {},
         additionalRequirements: '',
         quizResult: progress.completedResult,
+        submissionSaved: !!progress.submissionDocId,
       });
     }
     // Deliberately not depending on submittedResult: after a retake the
@@ -553,6 +626,7 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
             additionalRequirements={submittedResult.additionalRequirements || ''}
             quizResult={submittedResult.quizResult || null}
             questionnaire={questionnaire}
+            submissionSaved={submittedResult.submissionSaved ?? false}
             onReset={() => {
               if (questionnaire?.quiz === true) {
                 // Retake: drop the locally saved score and show the form
@@ -720,9 +794,10 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
   }
 
   // ---------------------------------------------------------------------------
-  // 6. Loading Questionnaire Definition
+  // 6. Loading Questionnaire Definition (also waits for the master
+  // submission switch, so a closed form never flashes open)
   // ---------------------------------------------------------------------------
-  if (loadingQuestionnaire || !questionnaire) {
+  if (loadingQuestionnaire || !questionnaire || globalSubmissionsEnabled === null) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4 text-center">
         {questionnaireError ? (
@@ -744,6 +819,59 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
             <span>Loading questionnaire content...</span>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6b. Submissions Closed for this form — master switch OFF (everything),
+  // or this requirements questionnaire's own toggle OFF. A quiz with its
+  // own toggle OFF is NOT closed (it runs anonymously); only the master
+  // switch closes a quiz. Study mode stays readable for a closed quiz: it
+  // shows answers, it does not collect them.
+  // ---------------------------------------------------------------------------
+  if (
+    questionnaire &&
+    globalSubmissionsEnabled !== null &&
+    !studyOnly &&
+    !isFormOpen(questionnaire, globalSubmissionsEnabled)
+  ) {
+    const isQuizForm = questionnaire.quiz === true;
+    return (
+      <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm max-w-md w-full text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/60">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-stone-900">Submissions Closed</h2>
+          <p className="text-xs text-stone-600 leading-relaxed">
+            This form is no longer accepting responses.
+          </p>
+          {isQuizForm && (
+            <p className="text-[11px] text-stone-400">
+              You can still read through the questions with their correct answers — nothing is collected.
+            </p>
+          )}
+          <div className="pt-4 border-t border-stone-100 flex flex-col gap-2">
+            {isQuizForm && (
+              <button
+                type="button"
+                onClick={() => setStudyOnly(true)}
+                className="w-full py-2.5 px-4 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors shadow-xs inline-flex items-center justify-center gap-2"
+              >
+                <BookOpen className="w-4 h-4" />
+                Study the answers instead
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="w-full py-2 text-xs text-stone-500 hover:text-stone-900 underline underline-offset-4 cursor-pointer"
+            >
+              Return to ReqForge Home
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -784,12 +912,18 @@ export const PublicFormPortal: React.FC<PublicFormPortalProps> = ({
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitError={submitError}
+        submissionsOpen={
+          isSubmissionsOpen(questionnaire, globalSubmissionsEnabled ?? true)
+        }
+        studyOnly={studyOnly}
       />
 
       {/* Footer */}
       <footer className="pb-8 pt-4 text-center text-xs text-stone-400">
         {questionnaire?.quiz === true
-          ? 'Anonymous quiz — nothing you answer is saved or sent anywhere'
+          ? isSubmissionsOpen(questionnaire, globalSubmissionsEnabled ?? true)
+            ? 'Your answers and score are saved to the project record when you submit'
+            : 'Anonymous quiz — nothing you answer is saved or sent anywhere'
           : 'ReqForge Client Questionnaire • Responses saved securely to encrypted project record'}
       </footer>
     </div>

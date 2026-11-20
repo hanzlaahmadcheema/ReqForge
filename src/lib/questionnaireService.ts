@@ -195,6 +195,10 @@ export function normalizeQuestionnaireDoc(
     showScoreOnSubmit: data.showScoreOnSubmit as boolean | undefined,
     showCorrectAnswers: data.showCorrectAnswers as boolean | undefined,
     passMark: data.passMark as number | undefined,
+    // Submission control — without this the public flows could never tell
+    // a closed form from an open one (default: on for requirements, off
+    // for quizzes — see submissionSettings.defaultSubmissionsEnabled).
+    submissionsEnabled: data.submissionsEnabled as boolean | undefined,
   };
 }
 
@@ -372,6 +376,8 @@ export async function publishQuestionnaire(
         showScoreOnSubmit: questionnaire.showScoreOnSubmit,
         showCorrectAnswers: questionnaire.showCorrectAnswers,
         passMark: questionnaire.passMark,
+        // Submission control as of publish time.
+        submissionsEnabled: questionnaire.submissionsEnabled,
       })
     );
   } catch (err) {
@@ -503,6 +509,8 @@ export async function duplicateQuestionnaire(
     showScoreOnSubmit: source.showScoreOnSubmit,
     showCorrectAnswers: source.showCorrectAnswers,
     passMark: source.passMark,
+    // Submission control: a duplicate keeps the source's setting.
+    submissionsEnabled: source.submissionsEnabled,
   };
 
   const docRef = doc(db, 'questionnaires', newId);

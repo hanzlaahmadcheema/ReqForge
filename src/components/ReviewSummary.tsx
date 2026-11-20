@@ -22,6 +22,12 @@ interface ReviewSummaryProps {
   /** Anonymous quiz: no contact details, no Firestore copy, submit shows the score. */
   isQuiz?: boolean;
   /**
+   * When true, this quiz attempt IS recorded in the project record on
+   * submit (submissions enabled for it) — the review copy must say so
+   * instead of the anonymous-quiz lines.
+   */
+  quizSavesResponses?: boolean;
+  /**
    * Quiz attempts answer one flat shuffled sequence (no section grouping),
    * so the review lists the same questions in that same shuffled order
    * instead of grouping by section. When set, the per-section chart and
@@ -47,6 +53,7 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
   isSubmitting,
   submitError,
   isQuiz = false,
+  quizSavesResponses = false,
   flatQuestions,
 }) => {
   const [isPdfGenerating, setIsPdfGenerating] = useState(false);
@@ -111,7 +118,9 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
                 {isQuiz
-                  ? 'Review your answers below. Nothing is saved — your score is calculated in this browser only.'
+                  ? quizSavesResponses
+                    ? 'Review your answers below. Your answers and score will be saved to the project record when you submit.'
+                    : 'Review your answers below. Nothing is saved — your score is calculated in this browser only.'
                   : 'Review your answers below. You can download a PDF copy before submitting to Firestore.'}
               </p>
             </div>
@@ -380,7 +389,11 @@ export const ReviewSummary: React.FC<ReviewSummaryProps> = ({
 
         <p className="text-center text-[11px] text-stone-400">
           {isQuiz ? (
-            <>Anonymous quiz — nothing is saved or sent anywhere.</>
+            quizSavesResponses ? (
+              <>Your answers and score will be saved to the project record.</>
+            ) : (
+              <>Anonymous quiz — nothing is saved or sent anywhere.</>
+            )
           ) : (
             <>Responses will be safely stored under Firestore collection <span className="font-mono font-medium text-stone-600">clientResponses</span></>
           )}

@@ -32,7 +32,9 @@ import {
   duplicateQuestionnaire,
   archiveQuestionnaire,
   deleteQuestionnaire,
+  saveQuestionnaire,
 } from '../../lib/questionnaireService';
+import { defaultSubmissionsEnabled } from '../../lib/submissionSettings';
 import { QuestionnaireBuilder } from './QuestionnaireBuilder';
 import { QuestionnairePreviewModal } from './QuestionnairePreviewModal';
 import { QuestionnaireJsonModal } from './QuestionnaireJsonModal';
@@ -117,6 +119,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
         showScoreOnSubmit: true,
         showCorrectAnswers: true,
         passMark: 70,
+        // Quizzes are anonymous by default: submissions off unless the
+        // owner turns them on (then answers + scores are saved).
+        submissionsEnabled: false,
         sections: [
           {
             id: `sec_${Date.now()}_1`,
@@ -159,6 +164,8 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
       status: 'draft',
       createdAt: now,
       updatedAt: now,
+      // Requirements questionnaires accept submissions by default.
+      submissionsEnabled: true,
       sections: [
         {
           id: `sec_${Date.now()}_1`,
@@ -233,6 +240,32 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
       if (onRefresh) await onRefresh();
     } catch (err: any) {
       alert(`Failed to update status: ${err?.message || err}`);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Flip the per-form "Accept submissions" switch. For a requirements
+  // questionnaire OFF closes the form (respondents see "Submissions
+  // Closed"); for a quiz OFF means anonymous (attemptable, nothing saved)
+  // and ON means answers + scores are saved to Firestore. The master
+  // switch in Submissions can still close everything regardless.
+  const handleToggleSubmissions = async (q: Questionnaire) => {
+    const next = !defaultSubmissionsEnabled(q);
+    setActionInProgress(q.id);
+    try {
+      await saveQuestionnaire({ ...q, submissionsEnabled: next });
+      setQuestionnaires((prev) =>
+        prev.map((item) => (item.id === q.id ? { ...item, submissionsEnabled: next } : item))
+      );
+      if (selectedQuestionnaire?.id === q.id) {
+        setSelectedQuestionnaire((prev) =>
+          prev ? { ...prev, submissionsEnabled: next } : null
+        );
+      }
+      if (onRefresh) await onRefresh();
+    } catch (err: any) {
+      alert(`Failed to update submissions setting: ${err?.message || err}`);
     } finally {
       setActionInProgress(null);
     }
@@ -391,6 +424,44 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           <p className="text-xs text-stone-700 bg-stone-50 p-3.5 rounded-xl leading-relaxed">
             {selectedQuestionnaire.description}
           </p>
+
+          {/* Accept submissions — per-form switch. Requirements OFF closes
+              the form; quiz OFF means anonymous, ON means answers + scores
+              are saved. The master switch in Submissions can still close
+              everything regardless of this setting. */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3">
+            <div>
+              <p className="text-xs font-bold text-stone-900">Accept submissions</p>
+              <p className="text-[11px] text-stone-500 leading-relaxed mt-0.5">
+                {selectedQuestionnaire.quiz === true
+                  ? defaultSubmissionsEnabled(selectedQuestionnaire)
+                    ? 'On — quiz answers and scores are saved to the project record.'
+                    : 'Off — this quiz is anonymous: nothing is saved, scores are calculated in the respondent\u2019s browser only.'
+                  : defaultSubmissionsEnabled(selectedQuestionnaire)
+                  ? 'On — respondents can submit and their answers are saved.'
+                  : 'Off — the form shows \u201cSubmissions Closed\u201d and saves nothing.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={defaultSubmissionsEnabled(selectedQuestionnaire)}
+              aria-label="Accept submissions"
+              disabled={actionInProgress === selectedQuestionnaire.id}
+              onClick={() => handleToggleSubmissions(selectedQuestionnaire)}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                defaultSubmissionsEnabled(selectedQuestionnaire)
+                  ? 'bg-emerald-600'
+                  : 'bg-stone-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  defaultSubmissionsEnabled(selectedQuestionnaire) ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
             <div className="p-3 bg-stone-50 rounded-xl border border-stone-100">
@@ -800,6 +871,7 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                   <th className="py-3 px-4">Template Title</th>
                   <th className="py-3 px-4">Version</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Submissions</th>
                   <th className="py-3 px-4">Sections</th>
                   <th className="py-3 px-4">Assigned Projects</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -853,6 +925,36 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                         >
                           {q.status}
                         </span>
+                      </td>
+
+                      {/* Submissions badge — also a click-to-flip toggle.
+                          For quizzes OFF means anonymous (still attemptable);
+                          for requirements OFF closes the form. */}
+                      <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSubmissions(q)}
+                          disabled={actionInProgress === q.id}
+                          title={
+                            defaultSubmissionsEnabled(q)
+                              ? 'Submissions on — click to turn off'
+                              : q.quiz === true
+                              ? 'Submissions off (anonymous quiz) — click to turn on and save answers'
+                              : 'Submissions off (form closed) — click to turn on'
+                          }
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer disabled:opacity-50 transition ${
+                            defaultSubmissionsEnabled(q)
+                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                              : 'bg-stone-200 text-stone-600 hover:bg-stone-300'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              defaultSubmissionsEnabled(q) ? 'bg-emerald-600' : 'bg-stone-500'
+                            }`}
+                          />
+                          {defaultSubmissionsEnabled(q) ? 'On' : 'Off'}
+                        </button>
                       </td>
 
                       <td className="py-3.5 px-4 font-semibold text-stone-800">
@@ -1047,7 +1149,9 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
           onClose={() => setIsJsonModalOpen(false)}
           onImportSuccess={(imported) => {
             // Imports from the Quizzes section always open as quizzes, even
-            // if the pasted JSON omits the quiz flags.
+            // if the pasted JSON omits the quiz flags. The submission
+            // setting follows the form type when the JSON omits it: quizzes
+            // off (anonymous), requirements on.
             setBuilderQuestionnaire(
               isQuizVariant
                 ? {
@@ -1056,8 +1160,12 @@ export const QuestionnairesView: React.FC<QuestionnairesViewProps> = ({
                     showScoreOnSubmit: imported.showScoreOnSubmit ?? true,
                     showCorrectAnswers: imported.showCorrectAnswers ?? true,
                     passMark: imported.passMark ?? 70,
+                    submissionsEnabled: imported.submissionsEnabled ?? false,
                   }
-                : imported
+                : {
+                    ...imported,
+                    submissionsEnabled: imported.submissionsEnabled ?? true,
+                  }
             );
           }}
         />

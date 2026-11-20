@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileCheck2,
   Search,
@@ -24,6 +24,10 @@ import { generateQuestionnairePdf } from '../../lib/generatePdf';
 import { exportSubmissionToCsv, exportSubmissionToJson } from '../../lib/exportService';
 import { scoreQuiz } from '../../lib/quizScoring';
 import { formatQuestionnaireOptionLabel } from '../../lib/questionnaireService';
+import {
+  getGlobalSubmissionSettings,
+  setGlobalSubmissionSettings,
+} from '../../lib/submissionSettings';
 
 interface SubmissionsViewProps {
   submissions: Submission[];
@@ -60,6 +64,46 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
   const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadSuccessId, setDownloadSuccessId] = useState<string | null>(null);
+
+  // Master submission switch (null = still loading). When OFF, NO form
+  // accepts submissions — every form shows "Submissions Closed" to
+  // respondents, regardless of its own per-form setting. When ON, each
+  // form's own setting applies. Persists in the Firestore settings/global
+  // document (see submissionSettings).
+  const [globalEnabled, setGlobalEnabled] = useState<boolean | null>(null);
+  const [masterSaving, setMasterSaving] = useState<boolean>(false);
+  const [masterError, setMasterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    getGlobalSubmissionSettings().then((s) => {
+      if (isMounted) setGlobalEnabled(s.submissionsEnabled);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleToggleMaster = async () => {
+    if (globalEnabled === null || masterSaving) return;
+    const next = !globalEnabled;
+    setMasterSaving(true);
+    setMasterError(null);
+    setGlobalEnabled(next);
+    try {
+      await setGlobalSubmissionSettings(next);
+    } catch (err: any) {
+      // Revert: the switch must never pretend it saved when it did not
+      // (e.g. the Firestore rules for /settings have not been deployed yet).
+      setGlobalEnabled(!next);
+      setMasterError(
+        `Could not save the master switch: ${err?.message || err}. ` +
+          'The Firestore rules for the settings collection may not be deployed yet — run `firebase deploy --only firestore:rules`.'
+      );
+    } finally {
+      setMasterSaving(false);
+    }
+  };
 
   // Lookup maps
   const clientMap = useMemo(() => {
@@ -250,6 +294,53 @@ export const SubmissionsView: React.FC<SubmissionsViewProps> = ({
             Showing {filteredSubmissions.length} of {submissions.length} Submissions
           </span>
         </div>
+      </div>
+
+      {/* Master submission switch — one switch for everything. OFF closes
+          submissions for every form at once (respondents see "Submissions
+          Closed"); ON hands control back to each form's own setting. */}
+      <div
+        className={`rounded-2xl border p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+          globalEnabled === false
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-white border-stone-200'
+        }`}
+      >
+        <div>
+          <p className="text-xs font-bold text-stone-900">
+            Submissions enabled for all forms
+            {globalEnabled === null && (
+              <span className="text-stone-400 font-semibold"> — loading…</span>
+            )}
+          </p>
+          <p className="text-[11px] text-stone-500 leading-relaxed mt-0.5">
+            {globalEnabled === false
+              ? 'OFF — no form is accepting submissions right now. Respondents see \u201cSubmissions Closed\u201d (quizzes can still be studied). Turn it back on to let each form\u2019s own setting apply.'
+              : 'ON — each form follows its own \u201cAccept submissions\u201d setting (Questionnaires / Quizzes lists). Turn it off to close submissions for every form at once.'}
+          </p>
+          {masterError && (
+            <p className="text-[11px] text-rose-700 leading-relaxed mt-1.5 font-medium">
+              {masterError}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={globalEnabled === true}
+          aria-label="Submissions enabled for all forms"
+          disabled={globalEnabled === null || masterSaving}
+          onClick={handleToggleMaster}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+            globalEnabled === true ? 'bg-emerald-600' : 'bg-stone-300'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              globalEnabled === true ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
       </div>
 
       {/* Filter and Search Bar */}

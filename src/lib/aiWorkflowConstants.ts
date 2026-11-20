@@ -14,6 +14,7 @@ export const REQFORGE_CANONICAL_TEMPLATE = {
   questionnaire: {
     title: "Client Software Requirements Questionnaire",
     description: "Please complete this questionnaire to help our engineering team understand your project requirements, scope, and technical constraints.",
+    submissions_enabled: true,
     sections: [
       {
         section_title: "1. Project Overview & Stakeholders",
@@ -139,6 +140,7 @@ export const REQFORGE_QUIZ_TEMPLATE = {
     show_score_on_submit: true,
     show_correct_answers: true,
     pass_mark: 70,
+    submissions_enabled: false,
     sections: [
       {
         section_title: 'Section 1',

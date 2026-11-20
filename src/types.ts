@@ -124,6 +124,10 @@ export interface Questionnaire {
   showScoreOnSubmit?: boolean; // Show the score to the respondent right after submitting (default true for quizzes)
   showCorrectAnswers?: boolean; // Show correct answers + explanations to the respondent (default true for quizzes)
   passMark?: number; // Pass threshold as a percentage 0-100 (optional; no pass/fail when omitted)
+  // Submission controls (optional; see src/lib/submissionSettings.ts).
+  // When false, the form shows a closed message and saves nothing.
+  // Default when absent: true for requirements questionnaires, false for quizzes.
+  submissionsEnabled?: boolean;
 }
 
 export interface QuestionnaireVersionSnapshot {
@@ -141,6 +145,9 @@ export interface QuestionnaireVersionSnapshot {
   showScoreOnSubmit?: boolean;
   showCorrectAnswers?: boolean;
   passMark?: number;
+  // Submission control as of publish time (the live questionnaire's current
+  // setting wins over the snapshot at render time — see App.tsx).
+  submissionsEnabled?: boolean;
 }
 
 export interface AnswerValue {
